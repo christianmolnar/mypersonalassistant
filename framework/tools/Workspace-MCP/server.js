@@ -15,7 +15,7 @@ const pat = readline.question('Enter Azure DevOps PAT (optional, press Enter to 
 });
 
 // Get baseUrl with default option
-const defaultBaseUrl = 'https://dev.azure.com/CEPlanning/';
+const defaultBaseUrl = 'https://office.visualstudio.com/';
 const baseUrl = readline.question(`Enter your Azure DevOps Base URL (default: ${defaultBaseUrl}): `) || defaultBaseUrl;
 
 // Instantiate Azure AD Credential
