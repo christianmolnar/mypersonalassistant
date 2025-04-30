@@ -90,7 +90,7 @@ Example structure:
 [Recognition of security contributions] + [Impact on trust and risk reduction] + [Pattern or approach observation] + [Future opportunity]
 ```
 
-### Growth Mindset Feedback
+### Reflect on a Challenge or Setback Feedback
 
 When commenting on a direct report's learning and growth:
 

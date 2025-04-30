@@ -25,6 +25,18 @@ My greatest impact has been [summarize key impact in 1-2 sentences].
 
 [Repeat this structure for each core priority]
 
+#### Manager Core Priority Impact
+[Insert Here]
+
+#### Diversity & Inclusion (D&I) Core Priority Impact
+[Insert Here]
+
+#### Security Core Priority Impact
+[Insert Here]
+
+#### Reflect on a Challenge or Setback
+[Insert Here]
+
 ### Diversity & Inclusion (D&I) Core Priority
 What impact did your actions have in contributing to a more diverse and inclusive Microsoft?
 
@@ -71,6 +83,18 @@ Success measures:
 
 [Repeat this structure for each core priority]
 
+#### Future Priorities
+```
+[Insert Here]
+```
+
+### Manager Core Priority (if applicable)
+Going forward, what specific actions will you take to empower your team and hold them accountable?
+
+[Describe 3-5 specific actions you'll take to support your team]
+
+[Explain how you will measure success in this area]
+
 ### Diversity & Inclusion (D&I) Core Priority
 [Select and describe at least one D&I focus area]
 
@@ -84,9 +108,6 @@ How will you define success as you activate your D&I Core Priority?
 
 [Optional: Add any additional security goals specific to your team or organization]
 
-### Manager Core Priority (if applicable)
-Going forward, what specific actions will you take to empower your team and hold them accountable?
+### Identify your opportunities for growth
 
-[Describe 3-5 specific actions you'll take to support your team]
-
-[Explain how you will measure success in this area]
+### My Feedback

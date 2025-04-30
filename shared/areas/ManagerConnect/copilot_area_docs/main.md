@@ -57,7 +57,7 @@ Examples of well-crafted manager feedback for different Connect sections, includ
 - Examples for Core Priority impact feedback
 - Examples for D&I Core Priority feedback
 - Examples for Security Core Priority feedback
-- Examples for Growth Mindset feedback
+- Examples for Reflect on a Challenge or Setback feedback
 - Examples for Future Priorities feedback
 - Examples for handling "Lower impact than expected" situations
 

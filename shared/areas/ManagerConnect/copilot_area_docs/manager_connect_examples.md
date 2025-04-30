@@ -99,7 +99,7 @@ This document provides complete examples of well-crafted manager feedback for di
 > 
 > Looking ahead, I encourage you to partner with the security team to conduct a proactive threat modeling exercise for our key systems, using the insights gained from this incident to identify and address potential vulnerabilities before they can be exploited.
 
-## Growth Mindset Feedback Examples
+## Reflect on a Challenge or Setback Feedback Examples
 
 ### Example 1: Learning from Setbacks
 
