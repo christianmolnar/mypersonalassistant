@@ -1,113 +1,145 @@
-# Connect Template
+# Connect Feedback Template
 
-Use this template as a starting point for your Connect document. Replace the placeholder text with your specific accomplishments, goals, and reflections.
+## FYXX-QX Connect (Month Year)
 
-## Reflect on the Past
-
-### Core Priority Impact
-For each of your previously established core priorities, answer the following:
-
-**Core Priority 1: [Priority Name]**
-
-My greatest impact has been [summarize key impact in 1-2 sentences].
-
-**Individual accomplishments:**
-- [Accomplishment with specific metrics]
-- [Accomplishment with specific metrics]
-
-**Contributions to the success of others:**
-- [How you helped others succeed with metrics]
-- [How you helped others succeed with metrics]
-
-**Leveraging others and results that build on the work of others:**
-- [How you collaborated with others with metrics]
-- [How you leveraged others' work with metrics]
-
-[Repeat this structure for each core priority]
+### Direct Report's Connect Summary
+```
+[Insert Here]
+```
 
 #### Manager Core Priority Impact
+```
 [Insert Here]
+```
 
 #### Diversity & Inclusion (D&I) Core Priority Impact
+```
 [Insert Here]
+```
 
 #### Security Core Priority Impact
+```
 [Insert Here]
+```
 
 #### Reflect on a Challenge or Setback
+```
 [Insert Here]
-
-### Diversity & Inclusion (D&I) Core Priority
-What impact did your actions have in contributing to a more diverse and inclusive Microsoft?
-
-[Describe specific D&I actions you took]
-
-[Provide examples of impact from these actions]
-
-### Security Core Priority
-What impact did you have for the Security Core Priority?
-
-[Describe specific security actions you took]
-
-[Provide examples of impact from these actions]
-
-### Manager Core Priority (if applicable)
-How did you empower your team, set them up for success, and hold them accountable?
-
-[Provide 3-5 examples of how you delivered on manager expectations]
-
-### Share how you applied a growth mindset
-Consider when you could have done something differently. How will you apply what you learned to make an even greater impact?
-
-**Example 1: [Brief title for the situation]**
-[Describe what happened and what you could have done differently]
-[Explain what you learned and how you've already applied or plan to apply this learning]
-
-**Example 2: [Brief title for the situation]**
-[Describe what happened and what you could have done differently]
-[Explain what you learned and how you've already applied or plan to apply this learning]
-
-## Looking Forward
-
-### What are your 3-5 core priorities?
-
-**Core Priority 1: [Priority Name]**
-
-Focus areas for the upcoming period to drive business impact:
-- [Describe focus areas]
-
-Success measures:
-- [Specific, measurable success indicator]
-- [Specific, measurable success indicator]
-- [Specific, measurable success indicator]
-
-[Repeat this structure for each core priority]
+```
 
 #### Future Priorities
 ```
 [Insert Here]
 ```
 
-### Manager Core Priority (if applicable)
-Going forward, what specific actions will you take to empower your team and hold them accountable?
+#### Manager Core Priority Future Priorities
+```
+[Insert Here]
+```
 
-[Describe 3-5 specific actions you'll take to support your team]
+#### Diversity & Inclusion (D&I) Core Priority Future Priorities
+```
+[Insert Here]
+```
 
-[Explain how you will measure success in this area]
+#### Security Core Priority Future Priorities
+```
+[Insert Here]
+```
 
-### Diversity & Inclusion (D&I) Core Priority
-[Select and describe at least one D&I focus area]
+#### Security Core Priority Future Priorities Feedback
+```
+[Insert Here]
+```
 
-How will you define success as you activate your D&I Core Priority?
-- [Success measure 1]
-- [Success measure 2]
-- [Success measure 3]
+#### Reflect on a Challenge or Setback
+```
+[Insert Here]
+```
 
-### Security Core Priority
-[Describe your security commitments]
+#### Feedback Received
+```
+- **Who:** [Name]
+  **Role:** [Role/Relationship]
+  **Feedback:** [Feedback text]
 
-[Optional: Add any additional security goals specific to your team or organization]
+[Add more entries as needed]
+```
 
-### Identify your opportunities for growth
+#### Highlighted Quotes & Summary
+```
+- [Quote 1]
+- [Quote 2]
+- [Quote 3]
+
+Summary: [Your summary of the most important themes or takeaways from the selected quotes.]
+```
 
 ### My Feedback
+
+#### Core Priority Impact Feedback
+```
+[Insert Here]
+```
+
+#### Manager Core Priority Impact Feedback
+```
+[Insert Here]
+```
+
+#### Diversity & Inclusion (D&I) Core Priority Impact Feedback
+```
+[Insert Here]
+```
+
+#### Security Core Priority Feedback
+```
+[Insert Here]
+```
+
+#### Reflect on a Challenge or Setback Feedback
+```
+[Insert Here]
+```
+
+#### Future Priorities Feedback
+```
+Start with a short introductory paragraph that conveys whether these Future Priorities are complete, clear, and measurable, in light of all other materials written by both the employee and the manager in this connect.
+
+Then, for each future priority listed in the "Future Priorities" section, provide specific, actionable feedback in the order presented. Do not combine feedback for multiple priorities into a single paragraph or section. For each priority:
+- Assess whether the stated success measures are clearly measurable (e.g., use of numbers, percentages, deadlines, or clear deliverables). If not, provide concrete suggestions to make them more data-driven and focused on measurable impact.
+- Use the established feedback mannerisms and tone as seen in previous feedback sections (affirm strengths, be direct and supportive, reference specific behaviors or intentions, and use narrative style).
+- Reference any relevant context from the direct report’s self-writeup and prior feedback history in this file.
+- If a priority is already well-defined and measurable, affirm this in a narrative style—do not force a concern.
+- If you notice anything that is too broad, not measurable, or unclear, call it out directly and provide a specific suggestion for improvement.
+- Keep feedback clear, actionable, and specific to each priority.
+
+Finish with a short closing paragraph expressing whether these core priorities will generate sufficient impact, and include any suggestions for further impact or areas of risk or concern that should be considered for the next cycle.
+```
+
+#### Manager Core Priority Future Priorities Feedback
+```
+[Insert Here]
+```
+
+#### Diversity & Inclusion (D&I) Core Priority Future Priorities Feedback
+```
+[Insert Here]
+```
+
+#### Security Core Priority Future Priorities Feedback
+```
+[Insert Here]
+```
+
+#### Reflect on a Challenge or Setback
+```
+[Insert Here]
+```
+
+#### Development Resources and Suggestions
+```
+[Insert Here]
+```
+
+---

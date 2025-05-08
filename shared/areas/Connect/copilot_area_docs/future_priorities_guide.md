@@ -1,6 +1,6 @@
 # Guide to Writing Effective Future Priorities
 
-This document provides guidance on how to craft compelling, impactful future priorities for your Connect document. Future priorities should be specific, measurable, aligned with organizational goals, and demonstrate your strategic thinking.
+This document provides guidance on how to craft compelling, impactful, and measurable future priorities for your Connect document. Future priorities should be specific, measurable, aligned with organizational goals, and demonstrate your strategic thinking.
 
 ## Components of Effective Future Priorities
 
@@ -8,7 +8,12 @@ Each of your future priorities should include:
 
 1. **Clear Priority Statement** - A concise description of the priority that immediately communicates its focus
 2. **Focus Areas** - Specific aspects of the priority that will drive business impact
-3. **Success Measures** - Concrete metrics or outcomes that will indicate success
+3. **Success Measures** - Concrete, data-driven metrics or outcomes that will indicate success. These must be measurable (e.g., numbers, percentages, deadlines, or clear deliverables). Avoid vague or subjective measures.
+
+## Writing Measurable Success Measures
+- Use quantifiable targets (e.g., "Increase customer volume by 5% for the quarter" or "Deliver 3 new features by end of Q2").
+- Tie success to business impact, not just completion of work (e.g., "Reduce incident response time by 20%" instead of "Complete incident response training").
+- If a measure is not easily quantifiable, clarify how progress will be tracked and what evidence will be used to determine success.
 
 ## Examples of Well-Crafted Future Priorities
 
@@ -59,7 +64,7 @@ Each of your future priorities should include:
 The D&I priority requires special attention and should follow this structure:
 
 1. **Focus Area Selection** - Choose at least one specific D&I focus area
-2. **Success Measures** - Define concrete success criteria for your D&I initiatives
+2. **Success Measures** - Define concrete, measurable success criteria for your D&I initiatives
 
 **Example:**
 "Develop or implement inclusive products, process, or practices."
@@ -103,3 +108,13 @@ The manager priority should focus on three key aspects:
 **Success Measurement:**
 - Positive feedback from team members
 - Improvement in management effectiveness metrics
+
+## Checklist for Reviewing Future Priorities
+- [ ] Is each priority statement clear and concise?
+- [ ] Are focus areas specific and actionable?
+- [ ] Are all success measures quantifiable and data-driven?
+- [ ] Is there a clear link between the priority and business impact?
+- [ ] For D&I and Security, are required elements and measurable outcomes included?
+- [ ] For managers, are modeling, coaching, and caring aspects addressed?
+
+If any item is missing or unclear, revise the priority to ensure it meets these standards.
