@@ -67,7 +67,7 @@ This document defines each rewards level, including the associated bonus/stock p
 ---
 
 ## Extraordinary Impact (160% bonus, 160% stock)
-- Delivered extraordinary impact by exceeding all expectations for ambitious, highly complex, and challenging individual core priorities (aiming higher, proactively identifying opportunities)
+- Delivered extraordinary impact by exceeding all expectations for ambitious, highly complex, and challenging individual core priorities (aiming higher, proactively identifying new opportunities)
 - Exceeded all expectations for company-wide core priorities (D&I and Security)
 - Exceeded expectations for Microsoft cultural expectations and values
 - Demonstrated a growth mindset with intensity (continuously personal accountability, proactively seeking/providing feedback, challenging conventional wisdom)
