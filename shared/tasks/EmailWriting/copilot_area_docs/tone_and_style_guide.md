@@ -47,9 +47,9 @@ This core principle encourages a communication style that is:
     *   Be cautious with humor; it can be misinterpreted in writing.
     *   Maintain confidentiality and be mindful of who is CC'd.
 
-## Personalized Mannerisms (Adapted from Connect Style Guide)
+## Personalized Mannerisms (Adapted from Performance_Check-In Style Guide)
 
-While the Connect style is for manager updates, some principles can be adapted for broader email communication, especially when aiming for conciseness and impact with senior audiences:
+While the Performance_Check-In style is for manager updates, some principles can be adapted for broader email communication, especially when aiming for conciseness and impact with senior audiences:
 
 *   **Audience Awareness:**
     *   Tailor your message to the recipient. For senior leaders or busy colleagues, be exceptionally concise and direct.

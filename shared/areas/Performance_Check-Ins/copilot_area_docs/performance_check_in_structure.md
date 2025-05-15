@@ -1,6 +1,6 @@
-# Connect Document Structure
+# Performance_Check-In Document Structure
 
-This document outlines the recommended structure for Connect documents, providing a clear framework for organizing reflections on past performance and plans for future development.
+This document outlines the recommended structure for Performance_Check-In documents, providing a clear framework for organizing reflections on past performance and plans for future development.
 
 ## Section 1: Reflect on the Past
 
@@ -12,7 +12,7 @@ This document outlines the recommended structure for Connect documents, providin
 
 ### Diversity & Inclusion (D&I) Core Priority
 - **Required Content**: Specific actions and their impact on creating a more diverse and inclusive workplace
-- **Approach**: Reflect specifically on the D&I Core Priority from your previous Connect
+- **Approach**: Reflect specifically on the D&I Core Priority from your previous Performance_Check-In
 - **Focus**: Include both formal initiatives and informal actions that contributed to inclusion
 - **Best Practice**: Document advocacy efforts, mentoring, inclusive meeting practices, and other cultural contributions
 
@@ -37,7 +37,7 @@ This document outlines the recommended structure for Connect documents, providin
 ## Section 2: Plan for the Future
 
 ### Core Priority Review
-- **Required Content**: 3-5 updated core priorities for the upcoming Connect period
+- **Required Content**: 3-5 updated core priorities for the upcoming Performance_Check-In period
 - **Approach**: Develop new priorities or revise existing ones to align with current organizational needs
 - **Focus**: Include specific D&I and Security priorities among your core priorities
 - **Best Practice**: Ensure priorities are aligned with team and organizational objectives while being personally meaningful
@@ -51,13 +51,13 @@ This document outlines the recommended structure for Connect documents, providin
 ## Additional Considerations
 
 ### Impact Measurement Framework
-Remember to address these three areas throughout your Connect:
+Remember to address these three areas throughout your Performance_Check-In:
 1. Individual accomplishments contributing to team/business/customer results
 2. Contributions to the success of others
 3. Results that build on others' work, ideas, or efforts
 
 ### Growth Mindset Focus
-Ensure your Connect demonstrates:
+Ensure your Performance_Check-In demonstrates:
 - Embracing challenges
 - Persistence through setbacks
 - Learning from failures

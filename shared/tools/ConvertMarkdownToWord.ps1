@@ -29,7 +29,7 @@ while (Test-Path $outputPath) {
 }
 
 # Path to your reference template (update this path if you save the template elsewhere)
-$referenceDoc = "C:\Repo\NicksWorkspace\CopilotWorkspaces\shared\tools\resume_reference.docx"
+$referenceDoc = "C:\Repo\MyPersonalAssistant\shared\tools\resume_reference.docx"
 
 # Run Pandoc to convert Markdown to Word using the reference template
 pandoc $FilePath -o $outputPath --reference-doc="$referenceDoc"
