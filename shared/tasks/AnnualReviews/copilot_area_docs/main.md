@@ -37,7 +37,7 @@ When evaluating an employee, if their performance is exceptionally strong within
 ## How to use this area
 
 - For each person, generate:
-  1. An evaluation of their rewards level (see rewards level definitions, to be provided). Consider using a '+' suffix (e.g., SI+) if performance is strong within that level and could justify consideration for the next level. If a '+' is used, add a section called '## Reasons for +' with short bullet(s) explaining the rationale for the '+'.
+  1. An evaluation of their rewards level (see rewards level definitions, to be provided). Use only the person's first name in all documentation and output. Consider using a '+' suffix (e.g., SI+) if performance is strong within that level and could justify consideration for the next level. If a '+' is used, add a section called '## Reasons for +' with short bullet(s) explaining the rationale for the '+'.
   2. A 1500 to 1800 character Rewards Justification, based on their rewards level and the results they have produced in the Performance_Check-Ins for the fiscal year.
 - Add new documentation files for annual review processes, templates, or guides to this folder.
 - Update this main.md file with a summary and index entry for each new file.

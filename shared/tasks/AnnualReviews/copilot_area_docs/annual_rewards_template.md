@@ -1,14 +1,14 @@
-# [Employee Name] Annual Rewards [Fiscal Year]
+# [First Name] Annual Rewards [Fiscal Year]
 
 ## How to Use This File
 
-To generate the annual rewards evaluation and justification for [Employee Name], use the following best-practice prompt:
+To generate the annual rewards evaluation and justification for [First Name], use the following best-practice prompt:
 
 ---
 
 **Prompt:**
 
-Using all available Performance_Check-In documents for [Employee Name] from the current fiscal year ([Fiscal Year]) (including their self-assessment and the manager's impact assessment from the `performance_check_in_feedback` files), generate:
+Using all available Performance_Check-In documents for [First Name] from the current fiscal year ([Fiscal Year]) (including their self-assessment and the manager's impact assessment from the `performance_check_in_feedback` files), generate:
 
 1. **A rewards level evaluation** for the individual, selecting the most appropriate level from the definitions in `rewards_level_definitions.md`. Base your evaluation strictly on the impact, growth mindset, cultural alignment, and business results demonstrated during this fiscal year, as evidenced in both their self-assessment and the manager's impact assessment. If you use a '+' (e.g., 'Significant Impact+'), you must add a section called '## Reasons for +' with short bullet(s) explaining the rationale for the '+'.
 
@@ -40,4 +40,4 @@ Using all available Performance_Check-In documents for [Employee Name] from the 
 
 ---
 
-*This file was generated automatically using the Annual Reviews process. Only one file per employee per fiscal year should exist in their `personal/who/people/[Employee Name]/annual_rewards/` folder.*
+*This file was generated automatically using the Annual Reviews process. Only one file per employee per fiscal year should exist in their `personal/who/people/[First Name]/annual_rewards/` folder.*
