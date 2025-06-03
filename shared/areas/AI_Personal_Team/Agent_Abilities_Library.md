@@ -142,6 +142,19 @@
   - Suggest Learning Resources
   - Provide Feedback on Practice
 
+## Researcher Agent (Personal)
+- **Responsibilities:** Research tasks for personal interests, life management, hobbies, health, and personal projects
+- **Tasks/Areas:** Personal research, hobbies, health, travel, purchases, life planning
+- **Collaboration/Communication:** Supports all Personal agents and user with research, recommendations, and information gathering
+- **Abilities:**
+  - Conduct Personal Topic Research
+  - Summarize Personal Findings
+  - Generate Personal Reference Lists
+  - Compare Products/Services
+  - Find Resources for Hobbies, Health, Travel, etc.
+  - Monitor Trends/News in Personal Interest Areas
+  - Draft Personal Project Reports or Summaries
+
 ---
 
 *Agents should be kept broad and context-aware. Split into more specialized agents only if complexity or volume justifies it.*
