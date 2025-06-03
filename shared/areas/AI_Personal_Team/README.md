@@ -9,6 +9,7 @@ This project is a public, collaborative effort to build a modular, extensible AI
 - Foster open-source contributions and extensibility
 
 ## Structure
+- **docs/**: Documentation, templates, and guides for this area
 - **Agent_Roles_Template.md**: Define agent types, responsibilities, and collaboration
 - **Collaboration_Model.md**: Document orchestrator, peer-to-peer, and hybrid models
 - **Integration_Points.md**: List APIs, data sources, and security considerations
@@ -16,12 +17,41 @@ This project is a public, collaborative effort to build a modular, extensible AI
 - **Extensibility_and_Success.md**: Define how to add new agents/integrations and measure success
 - **Plan_of_Action.md**: Outline immediate actions and a phased implementation plan
 
+## How to Use Your Personal Folder
+
+### Permanent Memory
+Store all personal notes, drafts, interview prep, portfolio materials, and working documents here. This provides context for your agents and keeps your private data out of the shared repo.
+
+### Personalization
+Agents can be designed to read from your personal folders (with your permission) to provide more personalized responses, summaries, or automations.
+
+### No Need to Mirror Shared Structure
+Organize by topic, project, or workflow—whatever is most useful for you. Only create agent-specific folders if you want to keep agent-related personal data separate.
+
+## Agent Roles & Capabilities Template
+
+Use this template to define each agent you envision (Scheduler, Researcher, Health Coach, etc.):
+
+### Agent Name
+- Description:
+- Primary Responsibilities:
+- Required Skills/Technologies:
+- Data/Systems Access Needed:
+- Example Use Cases:
+
+### Collaboration & Communication
+- How does this agent interact with others?
+- What triggers its actions?
+- What outputs/results does it produce?
+
+---
+
 ## Contributing
-- Please see the templates in this folder to propose new agents, integrations, or improvements
+- Please see the templates and docs in this folder to propose new agents, integrations, or improvements
 - Open issues or pull requests for discussion and review
 
 ## Next Steps
-- Fill in the requirements templates with your specific needs, agent ideas, and integration targets
+- Fill in the requirements templates and docs with your specific needs, agent ideas, and integration targets
 - Review and refine the architecture and agent roles
 - Decide on the initial collaboration model (or experiment with both)
 - Begin implementation according to the plan of action
