@@ -25,7 +25,8 @@ This tracker outlines the step-by-step plan for building the AI Personal Team an
   - Notes: Complete
 
 ### 3. Codebase Bootstrapping
-- ⭕ Choose tech stack (Python, TypeScript, etc.)
+- ✅ Choose tech stack (Python, TypeScript, etc.)
+  - Notes: Chosen stack: TypeScript/Node.js backend with REST API, React web frontend, and optional React Native for mobile app. Prioritize web interface and API integration first; plan for future ChatGPT/Assistant and external API (e.g., Schwab) integration.
 - ⭕ Scaffold agent base classes and interfaces
 - ⭕ Implement basic agent registry/orchestrator
 - ⭕ Set up communication model (orchestrator/peer-to-peer)
@@ -44,7 +45,7 @@ This tracker outlines the step-by-step plan for building the AI Personal Team an
 
 ### 6. Testing & Iteration
 - ⭕ Write and run tests for agent abilities and interactions
-- ⭕ Gather feedback and iterate on architecture and features
+- ⭕ Gather feedback and iterate on architecture and featuresnpx create-next-app@latest ai-personal-team --typescript --use-npm --no-tailwind --no-src-dir --app && cd ai-personal-team && npm install express axios dotenv react-query @types/express @types/node @types/react @types/react-dom
 - ⭕ Document usage, contribution, and onboarding guides
 
 ---

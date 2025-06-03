@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Scaffold AI Personal Team codebase",
+			"command": "npx create-next-app@latest ai-personal-team --typescript --use-npm --no-tailwind --no-src-dir --app && cd ai-personal-team && npm install express && npm install axios && npm install dotenv && npm install react-query && npm install @types/express && npm install @types/node && npm install @types/react && npm install @types/react-dom",
+			"group": "build",
+			"problemMatcher": [
+				"$tsc"
+			]
+		}
+	]
+}
