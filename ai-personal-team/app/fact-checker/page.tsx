@@ -283,6 +283,12 @@ export default function FactCheckerPage() {
                         src && src.summary && (
                           <li key={key} style={{ marginBottom: 12 }}>
                             <div style={{ fontWeight: 'bold', fontSize: 16, color: '#ffcc33', textDecoration: 'underline' }}>{key.charAt(0).toUpperCase() + key.slice(1)}: {src.summary}</div>
+                            {src.quote && (
+                              <details style={{ marginTop: 6 }}>
+                                <summary style={{ cursor: 'pointer', color: '#ffb347', fontWeight: 500 }}>Show full quoted source</summary>
+                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#181a1b', color: '#f3f3f3', padding: 8, borderRadius: 6, marginTop: 4 }}>{src.quote}</pre>
+                              </details>
+                            )}
                             {src.wikipediaUrl && (
                               <div><a href={src.wikipediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>View on Wikipedia</a></div>
                             )}
