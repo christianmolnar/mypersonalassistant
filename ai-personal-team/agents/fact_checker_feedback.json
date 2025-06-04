@@ -223,5 +223,29 @@
     },
     "feedback": "incorrect",
     "timestamp": "2025-06-04T04:28:11.274Z"
+  },
+  {
+    "claim": "girls are just as good as boys",
+    "result": {
+      "sources": {
+        "wikipedia": null,
+        "google": {
+          "summary": "Although “Girls are as good as boys at math” explicitly expresses equality, we predict it could nevertheless suggest that boys have more raw talent.",
+          "googleSearch": "https://www.google.com/search?q=girls%20are%20just%20as%20good%20as%20boys",
+          "primarySource": "Google"
+        },
+        "openai": {
+          "summary": "True. Girls are just as capable as boys in any field and should be given equal opportunities. Gender equality is an important principle, and it is recognized globally that both girls and boys have the same potential for success.",
+          "primarySource": "OpenAI"
+        }
+      },
+      "synthesizedDecision": "Based on the answers provided by Google and OpenAI, it is most likely correct to say that girls are just as capable as boys in any field, including math. The statement that \"Girls are as good as boys at math\" should be interpreted to mean that both genders have equal potential and ability in the subject. OpenAI emphasizes the importance of providing equal opportunities for both girls and boys and recognizes that gender equality is a global principle. Therefore, the most likely correct answer is that girls and boys have the same potential for success in math and other fields.",
+      "primarySource": "Google",
+      "summary": "Although “Girls are as good as boys at math” explicitly expresses equality, we predict it could nevertheless suggest that boys have more raw talent.",
+      "googleSearch": "https://www.google.com/search?q=girls%20are%20just%20as%20good%20as%20boys",
+      "decision": "False"
+    },
+    "feedback": "incorrect",
+    "timestamp": "2025-06-04T06:19:22.692Z"
   }
 ]

@@ -304,13 +304,26 @@ export class ResearcherAgent implements Agent {
       }
       // Compose the result object for the UI
       let decision: string;
-      if (wikiResult && wikiResult.summary) {
+      let primarySource = wikiResult ? 'Wikipedia' : (googleResult ? 'Google' : 'OpenAI');
+      let summary = wikiResult?.summary || googleResult?.summary || llmResult?.summary || 'No answer found.';
+      // If there is disagreement or synthesis was used, prefer the synthesized answer
+      if (synthesizedDecision) {
+        decision = this.extractDecision(synthesizedDecision);
+        summary = synthesizedDecision;
+        primarySource = 'Synthesis';
+      } else if (wikiResult && wikiResult.summary) {
         decision = this.extractDecisionFromSummary(claim, wikiResult.summary);
+        primarySource = 'Wikipedia';
+        summary = wikiResult.summary;
       } else if (googleResult && googleResult.summary) {
         decision = this.extractDecisionFromSummary(claim, googleResult.summary);
+        primarySource = 'Google';
+        summary = googleResult.summary;
       } else {
-        let decisionSource = synthesizedDecision || llmInitialAnswer;
+        let decisionSource = llmInitialAnswer;
         decision = this.extractDecision(decisionSource);
+        primarySource = 'OpenAI';
+        summary = llmInitialAnswer || 'No answer found.';
       }
       let resultObj: any = {
         sources: {
@@ -319,8 +332,8 @@ export class ResearcherAgent implements Agent {
           openai: llmResult,
         },
         synthesizedDecision,
-        primarySource: wikiResult ? 'Wikipedia' : (googleResult ? 'Google' : 'OpenAI'),
-        summary: wikiResult?.summary || googleResult?.summary || llmResult?.summary || 'No answer found.',
+        primarySource,
+        summary,
         wikipediaUrl: wikiResult?.wikipediaUrl,
         googleSearch: googleResult?.googleSearch || `https://www.google.com/search?q=${encodeURIComponent(claim)}`,
         decision, // I'll always include the parsed decision
