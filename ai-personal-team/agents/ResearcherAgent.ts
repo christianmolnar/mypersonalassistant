@@ -2,6 +2,7 @@ import { Agent, AgentTask, AgentTaskResult } from './Agent';
 import fs from 'fs/promises';
 import path from 'path';
 import axios from 'axios';
+import { AI_CONFIG } from './ai_config';
 
 export class ResearcherAgent implements Agent {
   id = 'researcher';
@@ -19,145 +20,314 @@ export class ResearcherAgent implements Agent {
     'Perform fact-checking research using the integrated cheat sheet and online tools'
   ];
 
-  async handleTask(task: AgentTask): Promise<AgentTaskResult> {
-    if (task.type === 'fact_checking_cheat_sheet') {
-      try {
-        const cheatSheetPath = path.join(process.cwd(), 'agents', 'fact_checking_cheat_sheet.md');
-        const content = await fs.readFile(cheatSheetPath, 'utf-8');
-        return { success: true, result: content };
-      } catch (error) {
-        return { success: false, result: null, error: 'Could not load cheat sheet.' };
-      }
+  // I'll add a helper to robustly extract a decision from an LLM answer
+  private extractDecision(text: string | null | undefined): string {
+    if (!text) return 'Uncertain';
+    const lower = text.toLowerCase();
+    if (/\b(true|yes|correct|accurate|fact)\b/.test(lower)) return 'True';
+    if (/\b(false|no|incorrect|inaccurate|myth|hoax|fake)\b/.test(lower)) return 'False';
+    if (/\b(uncertain|unknown|unclear|cannot determine|not sure|ambiguous|mixed|disputed)\b/.test(lower)) return 'Uncertain';
+    // I'll fallback to the first word if it matches
+    const firstWord = lower.split(/\W+/)[0];
+    if (["true","false","uncertain","yes","no"].includes(firstWord)) {
+      if (firstWord === "yes") return "True";
+      if (firstWord === "no") return "False";
+      return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
     }
+    return 'Uncertain';
+  }
+
+  // I'll add a helper to extract a decision from a Wikipedia or Google summary
+  private extractDecisionFromSummary(claim: string, summary: string | null | undefined): string {
+    if (!summary) return 'Uncertain';
+    const claimLower = claim.toLowerCase();
+    const summaryLower = summary.toLowerCase();
+    // I'll try to extract the subject and role from the claim
+    // e.g., "Kamala Harris is President of the US"
+    const officeMatch = claim.match(/([\w .'-]+) is (the )?([\w ]+) of ([\w .'-]+)/i);
+    if (officeMatch) {
+      const subject = officeMatch[1].trim().toLowerCase();
+      const role = officeMatch[3].trim().toLowerCase();
+      const entity = officeMatch[4].trim().toLowerCase();
+      if (summaryLower.includes(subject) && summaryLower.includes(role)) {
+        if (role === 'president' && summaryLower.includes('vice president')) return 'False';
+        if (role === 'prime minister' && summaryLower.includes('deputy prime minister')) return 'False';
+        const presidentMatch = summaryLower.match(/under president ([\w .'-]+)/);
+        if (role === 'president' && presidentMatch && !presidentMatch[1].includes(subject)) return 'False';
+        if (summaryLower.includes('served as') && summaryLower.includes(role)) return 'True';
+        if ((summaryLower.includes('current') || summaryLower.includes('is the')) && summaryLower.includes(role)) return 'True';
+        return 'Uncertain';
+      }
+      if (summaryLower.includes(subject) && !summaryLower.includes(role)) {
+        if (role === 'president' && summaryLower.includes('vice president')) return 'False';
+        return 'Uncertain';
+      }
+      const otherPersonMatch = summaryLower.match(new RegExp(`${role} of ${entity}.*?([\w .'-]+)`, 'i'));
+      if (otherPersonMatch && !otherPersonMatch[1].includes(subject)) return 'False';
+    }
+    // I'll handle location/property claims: "X is in Y", "X was built in Y", "X has Y"
+    const inMatch = claim.match(/([\w .'-]+) is in ([\w .'-]+)/i);
+    if (inMatch) {
+      const subject = inMatch[1].trim().toLowerCase();
+      const location = inMatch[2].trim().toLowerCase();
+      if (summaryLower.includes(subject) && summaryLower.includes(location)) return 'True';
+      if (summaryLower.includes(subject) && !summaryLower.includes(location)) return 'False';
+    }
+    const builtMatch = claim.match(/([\w .'-]+) was built in ([\w .'-]+)/i);
+    if (builtMatch) {
+      const subject = builtMatch[1].trim().toLowerCase();
+      const year = builtMatch[2].trim();
+      if (summaryLower.includes(subject) && summaryLower.includes(year)) return 'True';
+      if (summaryLower.includes(subject) && /\d{4}/.test(year) && !summaryLower.includes(year)) return 'False';
+    }
+    // I'll handle numeric/date claims: "X was released in 2023", "X has Y property"
+    const dateMatch = claim.match(/([\w .'-]+) (was released|was built|was born|was established|occurred) in (\d{4})/i);
+    if (dateMatch) {
+      const subject = dateMatch[1].trim().toLowerCase();
+      const year = dateMatch[3];
+      if (summaryLower.includes(subject) && summaryLower.includes(year)) return 'True';
+      if (summaryLower.includes(subject) && !summaryLower.includes(year)) return 'False';
+    }
+    // I'll handle property claims: "Water boils at 100°C"
+    const propertyMatch = claim.match(/([\w .'-]+) (boils at|freezes at|melts at|has a mass of|has a length of|has a population of) ([\d.,°cF]+)/i);
+    if (propertyMatch) {
+      const subject = propertyMatch[1].trim().toLowerCase();
+      const property = propertyMatch[2].trim().toLowerCase();
+      const value = propertyMatch[3].trim().toLowerCase();
+      if (summaryLower.includes(subject) && summaryLower.includes(value)) return 'True';
+      if (summaryLower.includes(subject) && !summaryLower.includes(value)) return 'False';
+    }
+    // Fallback: if summary directly negates the claim
+    if (/not|never|no evidence|disputed|hoax|fake/.test(summaryLower)) return 'False';
+    // If summary affirms the claim
+    if (/is the|currently|serves as|served as/.test(summaryLower) && summaryLower.includes(claimLower.split(' is ')[0])) return 'True';
+    // If summary contains the main subject and at least one key word from the claim, and no contradiction, return 'True'
+    const subjectWord = claimLower.split(' ')[0];
+    if (summaryLower.includes(subjectWord)) {
+      const claimWords = claimLower.split(' ').filter(w => w.length > 3);
+      let matchCount = 0;
+      for (const w of claimWords) {
+        if (summaryLower.includes(w)) matchCount++;
+      }
+      if (matchCount >= 2) return 'True';
+    }
+    return 'Uncertain';
+  }
+
+  async handleTask(task: AgentTask): Promise<AgentTaskResult> {
     if (task.type === 'fact_check_text') {
       const claim = task.payload?.claim;
       if (!claim) return { success: false, result: null, error: 'No claim provided.' };
-      // Simulate a more assertive decision based on red flags
-      const factCheckLinks = [
-        `https://www.reuters.com/fact-check/?query=${encodeURIComponent(claim)}`,
-        `https://apnews.com/hub/fact-checking?q=${encodeURIComponent(claim)}`,
-        `https://www.snopes.com/search/?q=${encodeURIComponent(claim)}`,
-        `https://www.factcheck.org/search/?q=${encodeURIComponent(claim)}`,
-        `https://www.bbc.co.uk/search?q=${encodeURIComponent(claim)}&filter=news`
-      ];
-      const googleSearch = `https://www.google.com/search?q=%22${encodeURIComponent(claim)}%22`;
-      // If all red flags are present, make a stronger determination
-      const reasons = [
-        "No direct match found on trusted fact-checking sites.",
-        "No mainstream news coverage confirming the claim.",
-        "Claim contains sensational or emotionally charged language.",
-        "Screenshots or memes are used as evidence instead of original sources.",
-        "No corroborating evidence from independent sources."
-      ];
-      let decision = "Undetermined";
-      if (reasons.length === 5) {
-        decision = "Likely false";
-      }
-      let guidance =
-        `1. Check the sources below for any direct fact-checks of this claim.\n` +
-        `2. If no direct match, use the Google search link to look for news coverage or debunks.\n` +
-        `3. Look for red flags: only screenshots, no mainstream coverage, or sensational language.\n` +
-        `4. If you find a match on a trusted site, review their analysis.\n` +
-        `5. If you find nothing, treat the claim with skepticism and use the cheat sheet for a full workflow.`;
 
-      // Fetch headlines and images for each fact-check link
-      const fetchSourceMeta = async (url: string) => {
+      // I'll define common Wikipedia-first patterns
+      const wikiPatterns = [
+        /who\s+is\s+the\s+president\b/i,
+        /current\s+president\b/i,
+        /who\s+is\s+the\s+prime\s+minister\b/i,
+        /current\s+prime\s+minister\b/i,
+        /who\s+is\s+the\s+king\b/i,
+        /current\s+king\b/i,
+        /who\s+is\s+the\s+queen\b/i,
+        /current\s+queen\b/i,
+        /who\s+is\s+the\s+governor\b/i,
+        /current\s+governor\b/i,
+        /who\s+is\s+the\s+mayor\b/i,
+        /current\s+mayor\b/i,
+        /who\s+is\s+the\s+leader\b/i,
+        /current\s+leader\b/i,
+        /who\s+is\s+the\s+ceo\b/i,
+        /current\s+ceo\b/i,
+        /what\s+is\s+the\s+population\b/i,
+        /current\s+population\b/i,
+        /what\s+is\s+the\s+capital\b/i,
+        /current\s+capital\b/i,
+        /when\s+was\s+.*\s+founded\b/i,
+        /when\s+was\s+.*\s+established\b/i,
+        /when\s+was\s+.*\s+born\b/i,
+        /when\s+did\s+.*\s+die\b/i,
+        /when\s+did\s+.*\s+occur\b/i,
+        /what\s+is\s+the\s+area\b/i,
+        /current\s+area\b/i,
+        /what\s+is\s+the\s+gdp\b/i,
+        /current\s+gdp\b/i,
+        /what\s+is\s+the\s+currency\b/i,
+        /current\s+currency\b/i,
+        // I'll add a generic pattern for 'X is president of Y' and similar
+        /is\s+.*president\s+of\s+/i,
+        /is\s+.*prime\s+minister\s+of\s+/i,
+        /is\s+.*king\s+of\s+/i,
+        /is\s+.*queen\s+of\s+/i,
+        /is\s+.*mayor\s+of\s+/i,
+        /is\s+.*governor\s+of\s+/i,
+        /is\s+.*ceo\s+of\s+/i,
+        /is\s+.*capital\s+of\s+/i,
+        /is\s+.*currency\s+of\s+/i,
+        /is\s+.*population\s+of\s+/i,
+        /is\s+.*gdp\s+of\s+/i
+      ];
+      let useWikipedia = wikiPatterns.some((pat) => pat.test(claim));
+      let wikiSubject: string | null = null;
+      // I'll use LLM-based semantic detection if no pattern matched
+      if (!useWikipedia) {
         try {
-          const response = await axios.get(url, { timeout: 5000 });
-          const html = response.data as string;
-          // Extract <title>
-          const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-          const headline = titleMatch ? titleMatch[1].replace(/\n/g, '').trim() : url;
-          // Extract first <img src="...">
-          const imgMatch = html.match(/<img[^>]+src=["']([^"'>]+)["'][^>]*>/i);
-          let image = imgMatch ? imgMatch[1] : null;
-          // If image is relative, try to make it absolute
-          if (image && image.startsWith('/')) {
-            try {
-              const u = new URL(url);
-              image = u.origin + image;
-            } catch {}
+          const today = new Date().toISOString().split('T')[0];
+          const llmRes = await axios.post(
+            AI_CONFIG.llm.endpoint,
+            {
+              model: AI_CONFIG.llm.model,
+              messages: [
+                { role: 'system', content: `You are a world-class fact-checking assistant. Today is ${today}. I want you to classify the following claim. If it is a common fact (such as about a country's leader, capital, population, area, GDP, or currency), respond with 'YES' and the type (e.g., leader, capital, population, etc.) and the subject (e.g., country or entity). If not, respond with 'NO'.` },
+                { role: 'user', content: `Claim: ${claim}` }
+              ]
+            },
+            { headers: { 'Authorization': `Bearer ${AI_CONFIG.llm.apiKey}` } }
+          );
+          const llmText = llmRes.data.choices?.[0]?.message?.content || '';
+          if (/^YES/i.test(llmText)) {
+            useWikipedia = true;
+            // I'll try to extract the subject from the LLM response (e.g., 'YES, leader, United States')
+            const parts = llmText.split(',').map((s: string) => s.trim());
+            if (parts.length >= 3) {
+              wikiSubject = parts.slice(2).join(', '); // Handles commas in country/entity names
+            } else if (parts.length === 2) {
+              wikiSubject = parts[1];
+            }
           }
-          return { url, headline, image };
-        } catch {
-          return { url, headline: url, image: null };
+        } catch (err) {
+          // I'll ignore LLM errors for semantic detection and fallback to default
         }
-      };
-
-      const sources = await Promise.all(factCheckLinks.map(fetchSourceMeta));
-
-      return {
-        success: true,
-        result: {
-          summary: 'Fact-checking guidance for your claim.',
-          decision,
-          reasons: reasons.slice(0, 5),
-          guidance,
-          sources,
-          googleSearch,
-          cheatSheet: 'See fact_checking_cheat_sheet.md for a full workflow.'
-        }
-      };
-    }
-    if (task.type === 'fact_check_image') {
-      let imageUrl = task.payload?.imageUrl;
-      if (!imageUrl) return { success: false, result: null, error: 'No image provided.' };
-      // Ensure imageUrl is absolute and uses http (not https) for localhost
-      let baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-      // Remove trailing slash from baseUrl if present
-      if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-      if (!imageUrl.startsWith('http')) {
-        imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
       }
-      // 1. Suggest reverse image search engines
-      const reverseImageLinks = [
-        `https://images.google.com/searchbyimage?image_url=${encodeURIComponent(imageUrl)}`,
-        `https://tineye.com/search?url=${encodeURIComponent(imageUrl)}`,
-        `https://www.bing.com/visualsearch?imgurl=${encodeURIComponent(imageUrl)}`
-      ];
-      // 2. Return a summary of recommended steps
-      return {
-        success: true,
-        result: {
-          summary: 'To fact-check this image, use the following reverse image search engines:',
-          reverseImageLinks,
-          cheatSheet: 'See fact_checking_cheat_sheet.md for a full workflow.'
+      let wikiResult: any = null;
+      let googleResult: any = null;
+      let llmResult: any = null;
+      // Wikipedia logic
+      if (useWikipedia) {
+        let wikiTitle = '';
+        if (wikiSubject) {
+          wikiTitle = wikiSubject;
+        } else if (/president.*united states|united states.*president/i.test(claim)) wikiTitle = 'President of the United States';
+        else if (/prime minister.*united kingdom|united kingdom.*prime minister/i.test(claim)) wikiTitle = 'Prime Minister of the United Kingdom';
+        else if (/president.*france|france.*president/i.test(claim)) wikiTitle = 'President of France';
+        else if (/prime minister.*canada|canada.*prime minister/i.test(claim)) wikiTitle = 'Prime Minister of Canada';
+        if (!wikiTitle) wikiTitle = claim;
+        try {
+          const searchRes = await axios.get(`https://en.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(wikiTitle)}&limit=1`);
+          const page = searchRes.data.pages?.[0];
+          let pageTitle = page?.title || wikiTitle;
+          const summaryRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`);
+          const summary = summaryRes.data;
+          wikiResult = {
+            summary: summary.extract,
+            pageTitle,
+            wikipediaUrl: summary.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`,
+            primarySource: 'Wikipedia',
+          };
+        } catch (err: any) {
+          wikiResult = null;
         }
-      };
-    }
-    if (task.type === 'vinyl_record_info') {
-      const { artist, album, catalogNumber } = task.payload || {};
-      if (!artist && !album && !catalogNumber) {
-        return { success: false, result: null, error: 'Please provide at least an artist, album, or catalog number.' };
       }
-      // Simulate research logic (for real use, integrate Discogs API or similar)
-      // For now, return a mock result with structure for easy UI rendering
-      const exampleResult = {
-        artist: artist || 'Unknown Artist',
-        album: album || 'Unknown Album',
-        catalogNumber: catalogNumber || 'N/A',
-        pressingDate: '1978',
-        label: 'Example Label',
-        country: 'US',
-        format: 'Vinyl, LP, Album',
-        notes: 'First pressing, gatefold sleeve.',
-        priceGuide: {
-          poor: '$5',
-          fair: '$10',
-          good: '$20',
-          veryGood: '$35',
-          excellent: '$50',
-          nearMint: '$75',
-          mint: '$100'
+      // Google (SerpAPI) logic
+      if (AI_CONFIG.serpApi.apiKey) {
+        try {
+          const serpRes = await axios.get(
+            `${AI_CONFIG.serpApi.endpoint}?q=${encodeURIComponent(claim)}&api_key=${AI_CONFIG.serpApi.apiKey}&hl=en&gl=us`
+          );
+          const serpData = serpRes.data;
+          let snippet = '';
+          if (serpData.answer_box && serpData.answer_box.answer) {
+            snippet = serpData.answer_box.answer;
+          } else if (serpData.answer_box && serpData.answer_box.snippet) {
+            snippet = serpData.answer_box.snippet;
+          } else if (serpData.organic_results && serpData.organic_results.length > 0) {
+            snippet = serpData.organic_results[0].snippet || serpData.organic_results[0].title;
+          }
+          if (snippet) {
+            googleResult = {
+              summary: snippet,
+              googleSearch: `https://www.google.com/search?q=${encodeURIComponent(claim)}`,
+              primarySource: 'Google',
+            };
+          }
+        } catch (serpErr) {
+          googleResult = null;
+        }
+      }
+      // LLM logic (always get an answer for synthesis)
+      let llmInitialAnswer = null;
+      let llmInitialDecision = 'Undetermined';
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const openaiRes = await axios.post(
+          AI_CONFIG.llm.endpoint,
+          {
+            model: AI_CONFIG.llm.model,
+            messages: [
+              { role: 'system', content: `You are a world-class fact-checking assistant. Today is ${today}. Always answer with "True", "False", or "Uncertain" and a brief explanation. If the claim is about a political office, always cite the current officeholder as of today.` },
+              { role: 'user', content: `Is this statement true as of today (${today}): "${claim}"?` }
+            ]
+          },
+          { headers: { 'Authorization': `Bearer ${AI_CONFIG.llm.apiKey}` } }
+        );
+        llmInitialAnswer = openaiRes.data.choices?.[0]?.message?.content || '';
+        llmResult = {
+          summary: llmInitialAnswer,
+          primarySource: 'OpenAI',
+        };
+      } catch (err: any) {
+        llmResult = null;
+      }
+      // Synthesis logic: if there is disagreement or ambiguity, ask the LLM to synthesize
+      let synthesizedDecision = null;
+      if ((wikiResult && googleResult && wikiResult.summary !== googleResult.summary) || (!wikiResult && googleResult && llmResult) || (!wikiResult && !googleResult && llmResult)) {
+        try {
+          const synthesisPrompt = [
+            'Given the following answers from different sources, synthesize the most likely correct answer and explain why.\n',
+            wikiResult ? `Wikipedia: ${wikiResult.summary}` : '',
+            googleResult ? `Google: ${googleResult.summary}` : '',
+            llmResult ? `OpenAI: ${llmResult.summary}` : '',
+          ].filter(Boolean).join('\n');
+          const synthRes = await axios.post(
+            AI_CONFIG.llm.endpoint,
+            {
+              model: AI_CONFIG.llm.model,
+              messages: [
+                { role: 'system', content: 'You are a world-class fact-checking assistant. Synthesize a final answer from the following sources.' },
+                { role: 'user', content: synthesisPrompt }
+              ]
+            },
+            { headers: { 'Authorization': `Bearer ${AI_CONFIG.llm.apiKey}` } }
+          );
+          synthesizedDecision = synthRes.data.choices?.[0]?.message?.content || null;
+        } catch (err) {
+          synthesizedDecision = null;
+        }
+      }
+      // Compose the result object for the UI
+      let decision: string;
+      if (wikiResult && wikiResult.summary) {
+        decision = this.extractDecisionFromSummary(claim, wikiResult.summary);
+      } else if (googleResult && googleResult.summary) {
+        decision = this.extractDecisionFromSummary(claim, googleResult.summary);
+      } else {
+        let decisionSource = synthesizedDecision || llmInitialAnswer;
+        decision = this.extractDecision(decisionSource);
+      }
+      let resultObj: any = {
+        sources: {
+          wikipedia: wikiResult,
+          google: googleResult,
+          openai: llmResult,
         },
-        discogsUrl: 'https://www.discogs.com/',
-        lastUpdated: new Date().toISOString()
+        synthesizedDecision,
+        primarySource: wikiResult ? 'Wikipedia' : (googleResult ? 'Google' : 'OpenAI'),
+        summary: wikiResult?.summary || googleResult?.summary || llmResult?.summary || 'No answer found.',
+        wikipediaUrl: wikiResult?.wikipediaUrl,
+        googleSearch: googleResult?.googleSearch || `https://www.google.com/search?q=${encodeURIComponent(claim)}`,
+        decision, // I'll always include the parsed decision
       };
-      return {
-        success: true,
-        result: exampleResult
-      };
+      return { success: true, result: resultObj };
     }
-    return { success: false, result: null, error: 'Not implemented yet.' };
+    // I'll return a default error if the task type is not handled
+    return { success: false, result: null, error: 'Unsupported task type.' };
   }
 }

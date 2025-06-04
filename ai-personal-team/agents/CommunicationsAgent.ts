@@ -1,6 +1,6 @@
 import { Agent, AgentTask, AgentTaskResult } from './Agent';
 
-// Example: Communications Agent implementation
+// Here's my example Communications Agent implementation
 export class CommunicationsAgent implements Agent {
   id = 'communications';
   name = 'Communications Agent';
@@ -18,7 +18,7 @@ export class CommunicationsAgent implements Agent {
   ];
 
   async handleTask(task: AgentTask): Promise<AgentTaskResult> {
-    // Placeholder: implement task routing logic
+    // This is a placeholder—I'll implement task routing logic here
     return { success: false, result: null, error: 'Not implemented yet.' };
   }
 }

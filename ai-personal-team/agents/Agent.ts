@@ -1,4 +1,4 @@
-// Base interface for all agents
+// This is my base interface for all agents
 export interface Agent {
   id: string;
   name: string;

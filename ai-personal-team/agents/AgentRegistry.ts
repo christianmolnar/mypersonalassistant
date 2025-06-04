@@ -10,7 +10,7 @@ export class AgentRegistry {
     // Register core agents here
     this.register(new CommunicationsAgent());
     this.register(new ResearcherAgent());
-    // Add more agents as you implement them
+    // I'll add more agents as I implement them
   }
 
   register(agent: Agent) {

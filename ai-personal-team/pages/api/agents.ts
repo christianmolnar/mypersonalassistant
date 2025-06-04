@@ -5,11 +5,11 @@ const registry = new AgentRegistry();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    // List all agents
+    // I'll list all agents
     return res.status(200).json({ agents: registry.getAllAgents() });
   }
   if (req.method === 'POST') {
-    // Route a task to an agent
+    // I'll route a task to an agent
     const { agentId, task } = req.body;
     const agent = registry.getAgent(agentId);
     if (!agent) {

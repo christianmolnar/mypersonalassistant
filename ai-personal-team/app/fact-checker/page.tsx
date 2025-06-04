@@ -1,0 +1,410 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+export default function FactCheckerPage() {
+  const [claim, setClaim] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  useEffect(() => {
+    document.body.style.background =
+      "linear-gradient(135deg, #181a1b 0%, #232526 100%)";
+    document.body.style.color = "#f3f3f3";
+    document.body.style.fontFamily = "Segoe UI, Arial, sans-serif";
+    return () => {
+      document.body.style.background = "";
+      document.body.style.color = "";
+      document.body.style.fontFamily = "";
+    };
+  }, []);
+
+  async function handleFactCheckText(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setResult(null);
+    const res = await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId: "researcher",
+        task: { type: "fact_check_text", payload: { claim } },
+      }),
+    });
+    const data = await res.json();
+    setResult(data.result || data.error);
+    setLoading(false);
+  }
+
+  async function handleFactCheckImage(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setResult(null);
+    let payload: any = {};
+    if (imageFile) {
+      const formData = new FormData();
+      formData.append("file", imageFile);
+      try {
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.url) {
+          setResult(
+            "Image upload failed: " + (uploadData.error || "Unknown error")
+          );
+          setLoading(false);
+          return;
+        }
+        payload.imageUrl = uploadData.url;
+      } catch (err) {
+        setResult("Image upload failed.");
+        setLoading(false);
+        return;
+      }
+    } else if (imageUrl) {
+      payload.imageUrl = imageUrl;
+    } else {
+      setResult("Please provide an image URL or upload a file.");
+      setLoading(false);
+      return;
+    }
+    const res = await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId: "researcher",
+        task: { type: "fact_check_image", payload },
+      }),
+    });
+    const data = await res.json();
+    setResult(data.result || data.error);
+    setLoading(false);
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100vw",
+        background: "linear-gradient(135deg, #181a1b 0%, #232526 100%)",
+        color: "#f3f3f3",
+        fontFamily: "Segoe UI, Arial, sans-serif",
+        padding: 0,
+        margin: 0,
+      }}
+    >
+      <main
+        style={{
+          maxWidth: 600,
+          margin: "0 auto",
+          padding: 32,
+          background: "rgba(34, 40, 49, 0.98)",
+          borderRadius: 16,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+          minHeight: 600,
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            color: "#ffb347",
+            letterSpacing: 1,
+          }}
+        >
+          Research Agent: Fact Checker
+        </h1>
+        <form
+          onSubmit={handleFactCheckText}
+          style={{
+            marginBottom: 32,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Paste a news claim or quote here"
+            value={claim}
+            onChange={(e) => setClaim(e.target.value)}
+            style={{
+              padding: 10,
+              borderRadius: 6,
+              border: "1px solid #888",
+              background: "#232526",
+              color: "#f3f3f3",
+              fontSize: 16,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={loading || !claim}
+            style={{
+              padding: "12px 0",
+              borderRadius: 6,
+              border: "none",
+              background:
+                "linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)",
+              color: "#232526",
+              fontWeight: 700,
+              fontSize: 18,
+              cursor: loading ? "not-allowed" : "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+            }}
+          >
+            {loading ? "Checking..." : "Check Claim"}
+          </button>
+        </form>
+        <form
+          onSubmit={handleFactCheckImage}
+          style={{
+            marginBottom: 32,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Paste image URL here"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            style={{
+              padding: 10,
+              borderRadius: 6,
+              border: "1px solid #888",
+              background: "#232526",
+              color: "#f3f3f3",
+              fontSize: 16,
+            }}
+          />
+          <span style={{ color: '#888', textAlign: 'center' }}>or</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+            style={{ color: '#f3f3f3' }}
+          />
+          <button
+            type="submit"
+            disabled={loading || (!imageUrl && !imageFile)}
+            style={{
+              padding: "12px 0",
+              borderRadius: 6,
+              border: "none",
+              background:
+                "linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)",
+              color: "#232526",
+              fontWeight: 700,
+              fontSize: 18,
+              cursor: loading ? "not-allowed" : "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+            }}
+          >
+            {loading ? "Checking..." : "Check Image"}
+          </button>
+          {imageFile && (
+            <div style={{ color: '#f3f3f3', fontSize: 14 }}>
+              <strong>Selected file:</strong> {imageFile.name}
+            </div>
+          )}
+        </form>
+        {loading && (
+          <div style={{ textAlign: "center", color: "#ffb347" }}>Checking...</div>
+        )}
+        {result && (
+          <div
+            style={{
+              background: "rgba(44, 62, 80, 0.98)",
+              borderRadius: 12,
+              padding: 24,
+              marginTop: 16,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+            }}
+          >
+            <strong>Result:</strong>
+            {typeof result === 'string' ? (
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', padding: 16, borderRadius: 8 }}>{result}</pre>
+            ) : (
+              <div>
+                {result.primarySource && (
+                  <div style={{ marginBottom: 12 }}>
+                    <strong style={{ color: '#ffb347' }}>Primary Source: {result.primarySource}</strong>
+                    {result.primarySource === 'Wikipedia' && result.wikipediaUrl && (
+                      <span style={{ marginLeft: 8 }}>
+                        (<a href={result.wikipediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>View on Wikipedia</a>)
+                      </span>
+                    )}
+                  </div>
+                )}
+                {result.summary && (
+                  <div style={{ marginBottom: 12 }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6, marginTop: 4 }}>{result.summary}</pre>
+                  </div>
+                )}
+                {result.llmInitialAnswer && result.primarySource === 'OpenAI' && (
+                  <div style={{ marginBottom: 12 }}>
+                    <strong style={{ color: '#ffb347' }}>OpenAI LLM Initial Answer:</strong>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6, marginTop: 4 }}>{result.llmInitialAnswer}</pre>
+                  </div>
+                )}
+                {result.decision && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Decision:</strong> <span style={{ color: result.decision === 'Likely false' ? '#ff6f61' : '#ffb347' }}>{result.decision}</span>
+                  </div>
+                )}
+                {result.reasons && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Top Reasons:</strong>
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {result.reasons.map((reason: string, i: number) => (
+                        <li key={i}>{reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.guidance && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Guidance:</strong>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6 }}>{result.guidance}</pre>
+                  </div>
+                )}
+                {result.sources && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Sources:</strong>
+                    <ul style={{ listStyle: 'disc', paddingLeft: 20 }}>
+                      {Object.entries(result.sources).map(([key, src]: [string, any], i: number) => (
+                        src && src.summary && (
+                          <li key={key} style={{ marginBottom: 12 }}>
+                            <div style={{ fontWeight: 'bold', fontSize: 16, color: '#ffcc33', textDecoration: 'underline' }}>{key.charAt(0).toUpperCase() + key.slice(1)}: {src.summary}</div>
+                            {src.wikipediaUrl && (
+                              <div><a href={src.wikipediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>View on Wikipedia</a></div>
+                            )}
+                            {src.googleSearch && (
+                              <div><a href={src.googleSearch} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>Google Search</a></div>
+                            )}
+                          </li>
+                        )
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.googleSearch && (
+                  <div style={{ marginBottom: 8 }}>
+                    <a href={result.googleSearch} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>Google Search for Claim</a>
+                  </div>
+                )}
+                {result.cheatSheet && (
+                  <div style={{ marginBottom: 8, fontSize: 13, color: '#888' }}>{result.cheatSheet}</div>
+                )}
+                {result.reverseImageLinks && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Reverse Image Search Links:</strong>
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {result.reverseImageLinks.map((link: string) => (
+                        <li key={link}>
+                          <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>{link}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.factCheckResults && result.factCheckResults.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Google Fact Check Results:</strong>
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {result.factCheckResults.map((item: any, i: number) => (
+                        <li key={i} style={{ marginBottom: 8 }}>
+                          <div style={{ color: '#ffb347', fontWeight: 600 }}>{item.text || item.claimReview?.[0]?.title}</div>
+                          {item.claimReview && item.claimReview.length > 0 && (
+                            <ul style={{ margin: 0, paddingLeft: 16 }}>
+                              {item.claimReview.map((review: any, j: number) => (
+                                <li key={j}>
+                                  <span style={{ color: '#ffcc33' }}>{review.publisher?.name}:</span> {review.text} (<a href={review.url} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>{review.title}</a>)
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.semanticMatches && result.semanticMatches.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>Top Semantic News Matches:</strong>
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {result.semanticMatches.map((match: any, i: number) => (
+                        <li key={i}>
+                          <span style={{ color: '#ffcc33' }}>{(match.similarity * 100).toFixed(1)}%</span> match: {match.headline}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            {result && !feedbackSubmitted && (
+              <div style={{ textAlign: 'center', marginTop: 24 }}>
+                <span style={{ marginRight: 12, color: '#ccc' }}>Was this answer correct?</span>
+                <button
+                  style={{
+                    background: '#4caf50', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', marginRight: 8, fontWeight: 600, cursor: 'pointer', fontSize: 15
+                  }}
+                  onClick={async () => {
+                    setFeedback('correct');
+                    setFeedbackSubmitted(true);
+                    await fetch('/api/agents/feedback', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        claim: claim || imageUrl,
+                        result,
+                        feedback: 'correct',
+                        timestamp: new Date().toISOString(),
+                      }),
+                    });
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  style={{
+                    background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, cursor: 'pointer', fontSize: 15
+                  }}
+                  onClick={async () => {
+                    setFeedback('incorrect');
+                    setFeedbackSubmitted(true);
+                    await fetch('/api/agents/feedback', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        claim: claim || imageUrl,
+                        result,
+                        feedback: 'incorrect',
+                        timestamp: new Date().toISOString(),
+                      }),
+                    });
+                  }}
+                >
+                  No
+                </button>
+              </div>
+            )}
+            {feedbackSubmitted && (
+              <div style={{ textAlign: 'center', marginTop: 18, color: '#ffb347', fontWeight: 600 }}>
+                Thank you for your feedback!
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
