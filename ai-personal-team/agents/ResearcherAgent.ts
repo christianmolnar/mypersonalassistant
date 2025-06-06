@@ -403,342 +403,516 @@ export class ResearcherAgent implements Agent {
           guidance: 'For now, manually review the article and paste the main claim for fact-checking.'
         }
       };
-    }
-    if (task.type === 'fetch_webpage_text') {
+    }    if (task.type === 'fetch_webpage_text') {
       const url = task.payload?.url;
       console.log('[ResearcherAgent] fetch_webpage_text handler called for URL:', url);
       if (!url) {
         console.log('[ResearcherAgent] Returning: No URL provided.');
         return { success: false, result: null, error: 'No URL provided.' };
       }
-      // Try Cheerio first
-      try {
-        const response = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; FactCheckerBot/1.0; +https://github.com/your-repo)',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-          timeout: 15000,
-        });
-        const html = response.data;
-        const $ = cheerio.load(html);
 
-        // Remove common navigation/header/footer elements
-        $('nav, header, footer, aside, .nav, .navigation, .menu, .sidebar').remove();
+      // Content validation helper
+      function validateContent(text: string): boolean {
+        // More lenient sentence detection
+        const sentenceCount = (text.match(/[.!?]+\s+[A-Z]/g) || []).length + 1;
+        const hasQuotes = (text.match(/["""'']/g) || []).length > 1;
+        const hasLinks = text.includes('http') || text.includes('www');
+        const hasNumbers = (text.match(/\d+/g) || []).length > 0;
+        
+        // Word count estimation (rough)
+        const wordCount = text.split(/\s+/).length;
+        
+        return (
+          // Standard article-length content
+          (text.length >= 200 && sentenceCount >= 2) ||
+          // Or meaningful quotes with some context
+          (hasQuotes && text.length >= 100) ||
+          // Or links with descriptive text
+          (hasLinks && text.length >= 100) ||
+          // Or text with numbers (likely meaningful data)
+          (hasNumbers && text.length >= 100) ||
+          // Or just substantial text
+          wordCount >= 40
+        );
+      }
 
-        // Extract headline first
-        let headline = $('h1').first().text().trim();
-        if (!headline && $('title').length) {
-          headline = $('title').first().text().trim();
-        }
-        // Fallback: try to get a unique phrase from the URL
-        if (!headline && url) {
-          const urlParts = url.split('/').filter(Boolean);
-          headline = urlParts[urlParts.length - 1]?.replace(/[-_]/g, ' ');
-        }
-
-        // Smart article content detection
-        let mainText = '';
-        let articleContent = '';
-        const possibleContentSelectors = [
-          'article', 
-          '[role="article"]',
-          '.article',
-          '.post-content',
-          '.entry-content',
-          '.content',
-          'main',
-          '#main-content',
-          '.main-content'
-        ];
-
-        // Try each selector until we find content
-        for (const selector of possibleContentSelectors) {
-          const elements = $(selector);
-          if (elements.length > 0) {
-            elements.each((_, el) => {
-              const text = $(el).text().trim();
-              // Only consider text that's likely to be article content
-              if (text.length >= 200 && (text.match(/\./g) || []).length >= 3) {
-                if (text.length > articleContent.length) {
-                  articleContent = text;
+      // Puppeteer extraction with improved error handling
+      async function extractWithPuppeteerInternal(): Promise<{success: boolean, text?: string, error?: string, fallbackHtml?: string}> {
+        let currStep = 'init';
+        let browser = null;
+        let page = null;
+        try {
+          let executablePath = undefined;
+          if (process.platform === 'win32') {
+            currStep = 'resolve executablePath';
+            executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+            if (!executablePath) {
+              // Try common Chrome locations
+              const commonPaths = [
+                path.join(process.env.ProgramFiles || '', 'Google/Chrome/Application/chrome.exe'),
+                path.join(process.env['ProgramFiles(x86)'] || '', 'Google/Chrome/Application/chrome.exe'),
+                path.join(process.env.LOCALAPPDATA || '', 'Google/Chrome/Application/chrome.exe')
+              ];
+              for (const chromePath of commonPaths) {
+                try {
+                  await fs.access(chromePath);
+                  executablePath = chromePath;
+                  break;
+                } catch (e) {
+                  console.warn(`[Puppeteer] Chrome not found at: ${chromePath}`);
                 }
               }
-            });
-          }
-          if (articleContent) break;
-        }
-
-        // If no article content found through selectors, try smart div selection
-        if (!articleContent) {
-          let maxDiv = '';
-          let maxLen = 0;
-          let maxScore = 0;
-
-          $('div').each((_, el) => {
-            const $el = $(el);
-            const text = $el.text().trim();
-            const len = text.length;
-            
-            // Skip very short text or likely navigation
-            if (len < 200) return;
-            
-            // Calculate a content score based on various factors
-            let score = 0;
-            
-            // Text length is a strong signal
-            score += len * 0.1;
-            
-            // Presence of paragraphs is a good signal
-            score += $el.find('p').length * 20;
-            
-            // More sentences suggest article content
-            score += (text.match(/[.!?]+/g) || []).length * 5;
-            
-            // Presence of quotes often indicates article content
-            score += (text.match(/["""'']/g) || []).length * 2;
-            
-            // Links density should be low in article content
-            const linkLength = $el.find('a').text().length;
-            if (linkLength) {
-              score -= (linkLength / len) * 50;
             }
+          }
 
-            if (score > maxScore) {
-              maxScore = score;
-              maxLen = len;
-              maxDiv = text;
+          currStep = 'launch browser';
+          browser = await puppeteer.launch({ 
+            headless: true,
+            args: [
+              '--no-sandbox', 
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--disable-gpu',
+              '--window-size=1920,1080',
+              '--disable-web-security', // For some paywalled sites
+              '--disable-features=IsolateOrigins,site-per-process' // For some dynamic sites
+            ],
+            executablePath,
+            timeout: 60000
+          });
+
+          currStep = 'new page';
+          page = await browser.newPage();
+          await page.setViewport({ width: 1920, height: 1080 });
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          await page.setRequestInterception(true);
+
+          page.on('request', (request) => {
+            if (
+              request.resourceType() === 'image' ||
+              request.resourceType() === 'stylesheet' ||
+              request.resourceType() === 'font' ||
+              request.url().includes('google-analytics') ||
+              request.url().includes('doubleclick') ||
+              request.url().includes('facebook') ||
+              request.url().includes('tracking') ||
+              request.url().includes('advertising')
+            ) {
+              request.abort();
+            } else {
+              request.continue();
             }
           });
 
-          if (maxDiv) {
-            articleContent = maxDiv;
-          }
-        }
+          currStep = 'goto';
+          await Promise.race([
+            page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), 30000))
+          ]);
 
-        mainText = articleContent.replace(/\s+/g, ' ').trim();
-        const sentenceCount = (mainText.match(/[.!?]+/g) || []).length;
-        
-        const mainTextLower = mainText.toLowerCase();
-        const headlineLower = headline ? headline.toLowerCase() : '';
-        let headlineActuallyFound = false;
-        let searchAreaLength = 0;
+          // Wait a bit for dynamic content
+          await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Look for headline in first part of content
-        if (headline && headlineLower) {
-          searchAreaLength = Math.min(mainTextLower.length, headlineLower.length + 1000);
-          if (mainTextLower.substring(0, searchAreaLength).includes(headlineLower)) {
-            headlineActuallyFound = true;
-          }
-        }
-
-        // Additional validation
-        const contentScore = {
-          hasMinLength: mainText.length >= 500,
-          hasSentences: sentenceCount >= 5,
-          hasQuotes: (mainText.match(/["""'']/g) || []).length > 0,
-          hasHeadline: headlineActuallyFound,
-          hasParagraphBreaks: (mainText.match(/\n\s*\n/g) || []).length > 0,
-          linkDensity: ($('a').text().length / mainText.length) < 0.3
-        };
-
-        console.log('[ResearcherAgent] Content validation:', {
-          url,
-          scores: contentScore,
-          mainTextLength: mainText.length,
-          sentenceCount,
-          extractedHeadline: headline,
-          mainTextStartsWithSample: mainText.substring(0, 80) + '...'
-        });
-
-        const isValidContent = contentScore.hasMinLength && 
-                             contentScore.hasSentences && 
-                             contentScore.hasHeadline &&
-                             (contentScore.hasQuotes || contentScore.hasParagraphBreaks) &&
-                             contentScore.linkDensity;
-
-        if (isValidContent) {
-          return { success: true, result: { text: mainText } };
-        } else {
-          console.log('[ResearcherAgent] Content validation failed, falling back to Puppeteer');
-          // Fall through to Puppeteer
-        }
-      } catch (err: any) {
-        console.error('[Cheerio fetch error]', err);
-        console.log('[ResearcherAgent] Returning: Cheerio fetch error', err.message || err);
-        return { success: false, result: null, error: `Cheerio fetch error: ${err.message || err}` };
-      }
-
-      // Puppeteer fallback with robust logging
-      let step = 'init';
-      try {
-        let executablePath = undefined;
-        if (process.platform === 'win32') {
-          step = 'resolve executablePath';
-          executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-          if (!executablePath) {
-            const user = process.env.USERPROFILE || process.env.HOME || '';
-            const chromePath = path.join(user, '.cache', 'puppeteer', 'chrome', 'win64-137.0.7151.55', 'chrome-win64', 'chrome.exe');
-            try { await fs.access(chromePath); executablePath = chromePath; } catch (e) { console.warn('[Puppeteer] Could not access default chrome path:', chromePath); }
-          }
-        }
-
-        step = 'launch browser';
-        console.log('[Puppeteer] Launching browser', executablePath ? `with executablePath: ${executablePath}` : '(default)');
-        const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'], executablePath });
-        
-        step = 'new page';
-        const page = await browser.newPage();
-        
-        step = 'goto';
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
-        
-        step = 'extract text';
-        const extractResult = await page.evaluate(() => {
-          const getText = (el: Element | null) => el ? el.textContent || '' : '';
-          
-          // First try to remove common non-content elements
-          document.querySelectorAll('nav, header, footer, aside, [role="navigation"], .nav, .navigation, .menu, .sidebar')
-            .forEach(el => el.remove());
-
-          // Get headline
-          let headline = '';
-          const h1 = document.querySelector('h1');
-          if (h1) headline = h1.textContent || '';
-          if (!headline) {
-            const title = document.querySelector('title');
-            if (title) headline = title.textContent || '';
-          }
-
-          // Smart content extraction
-          const possibleContentSelectors = [
-            'article', 
-            '[role="article"]',
-            '.article',
-            '.post-content',
-            '.entry-content',
-            '.content',
-            'main',
-            '#main-content',
-            '.main-content'
-          ];
-
-          let bestContent = '';
-          let bestScore = 0;
-
-          // Try selectors first
-          for (const selector of possibleContentSelectors) {
-            const elements = document.querySelectorAll(selector);
-            if (elements.length === 0) continue;
-
-            elements.forEach(el => {
-              const text = el.textContent || '';
-              if (text.length < 200) return;
-
-              let score = 0;
-              score += text.length * 0.1;
-              score += el.querySelectorAll('p').length * 20;
-              score += (text.match(/[.!?]+/g) || []).length * 5;
-              score += (text.match(/["""'']/g) || []).length * 2;
-              
-              const links = el.querySelectorAll('a');
-              let linkTextLength = 0;
-              links.forEach(link => linkTextLength += (link.textContent || '').length);
-              if (linkTextLength) {
-                score -= (linkTextLength / text.length) * 50;
-              }
-
-              if (score > bestScore) {
-                bestScore = score;
-                bestContent = text;
+          currStep = 'handle popups';
+          try {
+            await page.evaluate(() => {
+              const selectors = [
+                '[id*="cookie" i] button',
+                '[class*="cookie" i] button',
+                '[id*="consent" i] button',
+                '[class*="consent" i] button',
+                '[id*="popup" i] button',
+                '[class*="popup" i] button',
+                'button:not([hidden])',
+                '[role="button"]'
+              ];
+              for (const selector of selectors) {
+                document.querySelectorAll(selector).forEach(el => {
+                  if (
+                    el.textContent && 
+                    /accept|agree|continue|ok|got it|i understand/i.test(el.textContent) &&
+                    (el as HTMLElement).style.display !== 'none' &&
+                    (el as HTMLElement).offsetHeight > 0
+                  ) {
+                    (el as HTMLElement).click();
+                  }
+                });
               }
             });
+          } catch (popupErr) {
+            console.warn('[Puppeteer] Error handling popups:', popupErr);
           }
 
-          // If no content found through selectors, try divs
-          if (!bestContent) {
-            document.querySelectorAll('div').forEach(el => {
-              const text = el.textContent || '';
-              if (text.length < 200) return;
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
-              let score = 0;
-              score += text.length * 0.1;
-              score += el.querySelectorAll('p').length * 20;
-              score += (text.match(/[.!?]+/g) || []).length * 5;
-              score += (text.match(/["""'']/g) || []).length * 2;
-              
-              const links = el.querySelectorAll('a');
-              let linkTextLength = 0;
-              links.forEach(link => linkTextLength += (link.textContent || '').length);
-              if (linkTextLength) {
-                score -= (linkTextLength / text.length) * 50;
-              }
+          currStep = 'extract text';
+          const extractResult = await page.evaluate(() => {
+            document.querySelectorAll('nav, header, footer, aside, [role="navigation"], .nav, .navigation, .menu, .sidebar, .ad, .advertisement, .social-share, .comments, script, style, iframe')
+              .forEach(el => el.remove());
 
-              if (score > bestScore) {
-                bestScore = score;
-                bestContent = text;
-              }
-            });
-          }
-
-          const mainText = bestContent.replace(/\s+/g, ' ').trim();
-          const sentenceCount = (mainText.match(/[.!?]+/g) || []).length;
-          
-          // Validate content
-          const contentScore = {
-            hasMinLength: mainText.length >= 500,
-            hasSentences: sentenceCount >= 5,
-            hasQuotes: (mainText.match(/["""'']/g) || []).length > 0,
-            hasHeadline: headline && mainText.toLowerCase().includes(headline.toLowerCase()),
-            hasParagraphBreaks: (mainText.match(/\n\s*\n/g) || []).length > 0
-          };
-
-          return {
-            text: mainText,
-            headline,
-            validation: contentScore,
-            stats: {
-              length: mainText.length,
-              sentenceCount,
-              score: bestScore
+            function preprocessText(text: string): string {
+              return text
+                .replace(/\s+/g, ' ')
+                .replace(/\\n|\\r|\\t/g, ' ')
+                .replace(/\u00A0/g, ' ')
+                .replace(/\u2028|\u2029/g, '\n')
+                .trim();
             }
-          };
-        });
 
-        step = 'close browser';
-        await browser.close();
+            let bestContent = '';
+            let bestScore = 0;
 
-        console.log('[ResearcherAgent] Puppeteer extraction results:', {
-          url,
-          validation: extractResult.validation,
-          stats: extractResult.stats
-        });
+            // First try standard article selectors
+            const contentSelectors = [
+              'article', '[role="article"]', '.article',
+              '.post-content', '.entry-content', '.content',
+              'main', '#main-content', '.main-content',
+              '.article-body', '.post-body', '.story-content',
+              '[itemprop="articleBody"]', '[itemprop="text"]'
+            ];
 
-        const isValidContent = extractResult.validation.hasMinLength && 
-                             extractResult.validation.hasSentences && 
-                             (extractResult.validation.hasQuotes || extractResult.validation.hasParagraphBreaks);
+            for (const selector of contentSelectors) {
+              const elements = document.querySelectorAll(selector);
+              elements.forEach(el => {
+                const text = preprocessText(el.textContent || '');
+                if (text.length < 100) return;
 
-        if (isValidContent) {
-          console.log('[ResearcherAgent] Returning: Puppeteer success');
-          return { success: true, result: { text: extractResult.text } };
-        } else {
-          console.warn('[Puppeteer] Extraction failed validation checks');
-          console.log('[ResearcherAgent] Returning: Puppeteer extraction failed validation');
+                const paragraphs = Array.from(el.querySelectorAll('p'))
+                  .map(p => preprocessText(p.textContent || ''))
+                  .filter(t => t.length > 0);
+
+                let score = text.length * 0.1;
+                score += paragraphs.length * 15;
+                score += (text.match(/[.!?]+/g) || []).length * 3;
+                score += (text.match(/["""'']/g) || []).length;
+                score += (text.match(/\d{4}/g) || []).length * 2;
+                score += (text.match(/[A-Z][a-z]+\s+[A-Z][a-z]+/g) || []).length * 2;
+
+                // Boost score for elements with semantic HTML
+                if (el.matches('article, [itemprop="articleBody"], [itemprop="text"]')) {
+                  score *= 1.5;
+                }
+
+                // Look for metadata that suggests real article content
+                if (el.querySelector('time, [datetime], .date, .timestamp, .article-date')) {
+                  score *= 1.3;
+                }
+
+                // Penalize navigation/ad content
+                score -= (text.match(/cookie|privacy|advertisement|subscribe|sign up/gi) || []).length * 10;
+                score -= (text.match(/newsletter|subscription|special offer/gi) || []).length * 8;
+
+                // Penalize link-heavy sections
+                const links = el.querySelectorAll('a');
+                let linkTextLength = 0;
+                links.forEach(link => {
+                  linkTextLength += (link.textContent || '').length;
+                  if (/home|about|contact|sign in|log in/i.test(link.textContent || '')) {
+                    score -= 25;
+                  }
+                });
+                if (linkTextLength) {
+                  score -= (linkTextLength / text.length) * 30;
+                }
+
+                const content = paragraphs.length > 0 ? paragraphs.join('\n\n') : text;
+                if (score > bestScore) {
+                  bestScore = score;
+                  bestContent = content;
+                }
+              });
+            }
+
+            // If no luck with article elements, try div-based heuristics
+            if (!bestContent) {
+              document.querySelectorAll('div').forEach(el => {
+                const text = preprocessText(el.textContent || '');
+                if (text.length < 100) return;
+
+                const paragraphs = Array.from(el.querySelectorAll('p'))
+                  .map(p => preprocessText(p.textContent || ''))
+                  .filter(t => t.length > 0);
+
+                let score = text.length * 0.05;
+                score += (paragraphs.length * 10);
+
+                // Same scoring rules as above...
+                if (score > bestScore) {
+                  bestScore = score;
+                  bestContent = paragraphs.length > 0 ? paragraphs.join('\n\n') : text;
+                }
+              });
+            }
+
+            return { text: bestContent };
+          });
+
+          await browser.close();
+          browser = null;
+
+          if (extractResult.text) {
+            console.log('[ResearcherAgent] Puppeteer extraction successful');
+            return { success: true, text: extractResult.text };
+          }
+
           return { 
             success: false, 
-            result: null, 
-            error: `Could not extract valid article content. Content validation failed: ${
-              Object.entries(extractResult.validation)
-                .filter(([_, passed]) => !passed)
-                .map(([test]) => test)
-                .join(', ')
-            }`
+            error: 'Content validation failed: insufficient content length or structure',
+            fallbackHtml: await page.content()
+          };
+
+        } catch (err: any) {
+          console.error(`[Puppeteer fetch error at step: ${currStep}]`, err);
+
+          let fallbackHtml = '';
+          try {
+            if (page) {
+              fallbackHtml = await page.content();
+            }
+          } catch (fallbackErr) {
+            console.error('[Puppeteer] Error getting fallback HTML:', fallbackErr);
+          }
+
+          return { 
+            success: false, 
+            error: `Puppeteer error at ${currStep}: ${err.message || err}`,
+            fallbackHtml
+          };
+
+        } finally {
+          if (browser) {
+            try {
+              await browser.close();
+            } catch (closeErr) {
+              console.error('[Puppeteer] Error closing browser:', closeErr);
+            }
+          }
+        }
+      }
+
+      // Cheerio extraction with improved error handling
+      async function extractWithCheerioInternal(html?: string): Promise<{success: boolean, text?: string, error?: string}> {
+        try {
+          console.log('[Cheerio] Starting extraction...');
+          let $ = null;
+          
+          if (html) {
+            $ = cheerio.load(html);
+          } else {
+            const response = await axios.get(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br'
+              },
+              timeout: 15000,
+              maxRedirects: 5
+            });
+            $ = cheerio.load(response.data);
+          }
+
+          // Remove non-content elements
+          $('nav, header, footer, aside, .nav, .navigation, .menu, .sidebar, .ad, .advertisement, .social-share, .comments, script, style, iframe, meta, link').remove();
+
+          let mainText = '';
+          const selectors = [
+            'article', '[role="article"]', '.article',
+            '.post-content', '.entry-content', '.content',
+            'main', '#main-content', '.main-content',
+            '.article-body', '.post-body', '.story-content',
+            '.story-body', '.news-article', '.wysiwyg_content',
+            '.article__content', '#article-content',
+            '[itemprop="articleBody"]', '[itemprop="text"]',
+            '.article__body', '.article-text',
+            '.story__content', '.article__main',
+            '.article-body__content', '.article__content'
+          ];
+
+          // Try each selector in order of preference
+          for (const selector of selectors) {
+            const $content = $(selector);
+            if ($content.length) {
+              // Get all paragraphs and their text
+              const paragraphs = $content.find('p').map((_, el) => {
+                // Clean up the text
+                return $(el).text()
+                  .replace(/\s+/g, ' ')
+                  .replace(/\\n|\\r|\\t/g, ' ')
+                  .replace(/\u00A0/g, ' ')
+                  .trim();
+              }).get().filter(text => text.length > 0);
+
+              if (paragraphs.length) {
+                const text = paragraphs.join('\n\n');
+                if (text.length > mainText.length) {
+                  mainText = text;
+                }
+              }
+            }
+          }
+
+          // If no luck with main selectors, try divs with substantial content
+          if (!mainText) {
+            let maxLen = 0;
+            $('div').each((_, el) => {
+              const $div = $(el);
+              const paragraphs = $div.find('p').map((_, p) => $(p).text().trim()).get();
+              const text = paragraphs.length ? paragraphs.join('\n\n') : $div.text().trim();
+              
+              // Basic scoring
+              let score = text.length;
+              score += (text.match(/[.!?]+/g) || []).length * 3;
+              score += (text.match(/["""'']/g) || []).length;
+              score -= (text.match(/cookie|privacy|advertisement|subscribe|sign up/gi) || []).length * 10;
+              
+              if (score > maxLen) {
+                maxLen = score;
+                mainText = text.replace(/\s+/g, ' ').trim();
+              }
+            });
+          }
+
+          if (validateContent(mainText)) {
+            console.log('[Cheerio] Extraction successful');
+            return { success: true, text: mainText };
+          }
+
+          console.log('[Cheerio] Extracted content failed validation');
+          return { success: false, error: 'Insufficient content extracted with Cheerio' };
+
+        } catch (err: any) {
+          console.error('[Cheerio fetch error]', err);
+          return { success: false, error: `Cheerio error: ${err.message || err}` };
+        }
+      }
+
+      // Try Puppeteer first
+      console.log('[ResearcherAgent] Attempting Puppeteer extraction...');
+      const puppeteerResult = await extractWithPuppeteerInternal();
+      if (puppeteerResult.success && puppeteerResult.text) {
+        console.log('[ResearcherAgent] Puppeteer extraction successful');
+        return { success: true, result: { text: puppeteerResult.text }};
+      }
+
+      // If Puppeteer failed but got HTML, try Cheerio with that HTML first
+      console.log('[ResearcherAgent] Puppeteer failed, error:', puppeteerResult.error);
+      if (puppeteerResult.fallbackHtml) {
+        console.log('[ResearcherAgent] Trying Cheerio with Puppeteer HTML...');
+        const cheerioResult = await extractWithCheerioInternal(puppeteerResult.fallbackHtml);
+        if (cheerioResult.success && cheerioResult.text) {
+          console.log('[ResearcherAgent] Cheerio extraction from Puppeteer HTML successful');
+          return { success: true, result: { text: cheerioResult.text }};
+        }
+      }
+
+      // Finally try Cheerio with fresh fetch
+      console.log('[ResearcherAgent] Trying Cheerio with fresh fetch...');
+      const cheerioResult = await extractWithCheerioInternal();
+      if (cheerioResult.success && cheerioResult.text) {
+        console.log('[ResearcherAgent] Cheerio extraction successful');
+        return { success: true, result: { text: cheerioResult.text }};
+      }
+
+      // Both failed
+      const errorMsg = `Failed to extract content: Puppeteer (${puppeteerResult.error}), Cheerio (${cheerioResult.error})`;
+      console.error('[ResearcherAgent] Both extractors failed:', errorMsg);
+      return { 
+        success: false, 
+        result: null, 
+        error: errorMsg
+      };
+    }
+    if (task.type === 'extract_claims_from_text') {
+      const text = task.payload?.text;
+      const url = task.payload?.url;
+      
+      if (!text) {
+        return { success: false, result: null, error: 'No text provided for claim extraction.' };
+      }
+
+      try {
+        const openaiRes = await axios.post(
+          AI_CONFIG.llm.endpoint,
+          {
+            model: AI_CONFIG.llm.model,
+            messages: [
+              { 
+                role: 'system', 
+                content: `You are a claim extraction expert. Your task is to extract factual claims from text that can be fact-checked.
+
+Rules:
+1. Focus on specific, verifiable claims
+2. Ignore opinions and subjective statements
+3. Prioritize claims about events, statistics, quotes, or facts
+4. Format your response EXACTLY like this example:
+{
+  "claims": [
+    "The president announced a $5 billion infrastructure plan on June 1st",
+    "Unemployment dropped to 4.2% in May",
+    "The bill passed with 67 votes in favor"
+  ]
+}` 
+              },
+              { 
+                role: 'user', 
+                content: `Extract factual claims from this text and return them in the specified JSON format.\n\nSource URL: ${url}\n\nText: ${text}`
+              }
+            ]
+          },
+          { headers: { 'Authorization': `Bearer ${AI_CONFIG.llm.apiKey}` } }
+        );
+
+        const llmResponse = openaiRes.data.choices?.[0]?.message?.content;
+        console.log('LLM claim extraction response:', llmResponse);
+
+        let extractedClaims: string[] = [];
+
+        try {
+          // Try to parse as JSON with claims array
+          const parsed = JSON.parse(llmResponse);
+          if (parsed && Array.isArray(parsed.claims)) {
+            extractedClaims = parsed.claims;
+          } else if (Array.isArray(parsed)) {
+            extractedClaims = parsed;
+          }
+        } catch (parseErr) {
+          console.log('JSON parse failed, trying text extraction:', parseErr);
+          // If not JSON, try to extract claims from plain text
+          const textClaims = llmResponse
+            .split(/\d+\.|[\n\r]+/)
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0 && !s.startsWith('{') && !s.startsWith('}') && !s.includes('"claims":'));
+
+          if (textClaims.length > 0) {
+            extractedClaims = textClaims;
+          }
+        }
+
+        if (extractedClaims.length > 0) {
+          return {
+            success: true,
+            result: {
+              claims: extractedClaims,
+              mainClaim: extractedClaims[0] // Ensure mainClaim is always set to first claim
+            }
           };
         }
+
+        return {
+          success: false,
+          result: null,
+          error: 'Could not extract any claims from the text'
+        };
+
       } catch (err: any) {
-        console.error(`[Puppeteer fetch error at step: ${step}]`, err);
-        console.log('[ResearcherAgent] Returning: Puppeteer fetch error', err.message || err);
-        return { success: false, result: null, error: `Puppeteer fetch error at step: ${step}: ${err.message || err}` };
+        console.error('Error extracting claims:', err);
+        return {
+          success: false,
+          result: null,
+          error: `Error extracting claims: ${err.message || err}`
+        };
       }
     }
     // I'll return a default error if the task type is not handled
