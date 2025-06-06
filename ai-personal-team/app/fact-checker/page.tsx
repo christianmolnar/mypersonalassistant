@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import axios from "axios";
 
 export default function FactCheckerPage() {
   const [claim, setClaim] = useState("");
@@ -23,10 +24,127 @@ export default function FactCheckerPage() {
     };
   }, []);
 
-  async function handleFactCheckText(e: React.FormEvent) {
+  async function fetchArticleText(url: string): Promise<{ text: string | null; error: string | null }> {
+    console.log('Fetching article text for URL:', url);
+    try {
+      const res = await axios.post("/api/agents", {
+        agentId: "researcher",
+        task: { type: "fetch_webpage_text", payload: { url } },
+      });
+      console.log('API Response:', res);
+      const data = res.data;
+      console.log('API Data:', data);
+      
+      if (data && data.result && data.result.text) {
+        console.log('Successfully extracted text, length:', data.result.text.length);
+        return { text: data.result.text, error: null };
+      }
+      if (data && data.error) {
+        console.error('API returned error:', data.error);
+        return { text: null, error: data.error };
+      }
+      console.error('Unknown response format:', data);
+      return { text: null, error: "Unknown error fetching article text." };
+    } catch (err) {
+      console.error('Network or server error:', err);
+      return { text: null, error: "Network or server error fetching article text." };
+    }
+  }
+
+  async function handleFactCheck(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    const isUrl = claim.match(/^https?:\/\//i);
+    if (isUrl) {
+      // Fetch article text
+      const { text: articleText, error: fetchError } = await fetchArticleText(claim);
+      if (fetchError) {
+        setResult(fetchError);
+        setLoading(false);
+        return;
+      }
+      if (!articleText) {
+        setResult("Could not fetch article text. Please check the URL or try again later.");
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Article text extracted, length:', articleText.length);
+      console.log('First 200 chars:', articleText.substring(0, 200));
+      
+      // Extract main claim(s) using LLM
+      try {
+        console.log('Attempting to extract claims...');
+        const extractRes = await fetch("/api/agents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: "researcher",
+            task: { type: "extract_claims_from_text", payload: { text: articleText, url: claim } },
+          }),
+        });
+        
+        if (!extractRes.ok) {
+          throw new Error(`HTTP error! status: ${extractRes.status}`);
+        }
+        
+        const extractData = await extractRes.json();
+        console.log('Extract claims response:', extractData);
+        
+        if (extractData.error) {
+          setResult(`Error extracting claims: ${extractData.error}`);
+          setLoading(false);
+          return;
+        }
+        
+        // Check all possible locations for claims
+        const mainClaim = extractData.result?.mainClaim || 
+                         extractData.result?.claims?.[0] || 
+                         extractData.mainClaim || 
+                         extractData.claims?.[0] || 
+                         null;
+
+        if (!mainClaim) {
+          console.error('No main claim found in response:', extractData);
+          setResult("Could not find any factual claims to check in the article.");
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Main claim extracted:', mainClaim);
+        
+        // Fact-check the extracted claim
+        const factCheckRes = await fetch("/api/agents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: "researcher",
+            task: { type: "fact_check_text", payload: { claim: mainClaim } },
+          }),
+        });
+        
+        if (!factCheckRes.ok) {
+          throw new Error(`HTTP error! status: ${factCheckRes.status}`);
+        }
+        
+        const factCheckData = await factCheckRes.json();
+        console.log('Fact check response:', factCheckData);
+        
+        if (factCheckData.error) {
+          setResult(`Error fact-checking claim: ${factCheckData.error}`);
+        } else {
+          setResult(factCheckData.result || 'No result from fact-check');
+        }
+    } catch (err: any) {
+      console.error('Error in fact-checking process:', err);
+      setResult(`Error processing article: ${err?.message || 'Unknown error occurred'}`);
+    } finally {
+      setLoading(false);
+    }
+    return;
+  }
+    // Otherwise, treat as claim/quote
     const res = await fetch("/api/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,7 +238,7 @@ export default function FactCheckerPage() {
           Research Agent: Fact Checker
         </h1>
         <form
-          onSubmit={handleFactCheckText}
+          onSubmit={handleFactCheck}
           style={{
             marginBottom: 32,
             display: "flex",
@@ -130,7 +248,7 @@ export default function FactCheckerPage() {
         >
           <input
             type="text"
-            placeholder="Paste a news claim or quote here"
+            placeholder="Paste News Claim, Quote, or URL here"
             value={claim}
             onChange={(e) => setClaim(e.target.value)}
             style={{
@@ -158,7 +276,7 @@ export default function FactCheckerPage() {
               boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
             }}
           >
-            {loading ? "Checking..." : "Check Claim"}
+            {loading ? "Checking..." : "Check Claim or URL"}
           </button>
         </form>
         <form

@@ -9,6 +9,17 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Generate Google Cover Letter",
+			"type": "shell",
+			"command": "cd ai-personal-team && npx ts-node scripts/generate-google-cover-letter.ts",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
 		}
 	]
 }

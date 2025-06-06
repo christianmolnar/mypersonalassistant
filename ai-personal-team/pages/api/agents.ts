@@ -4,6 +4,7 @@ import { AgentRegistry } from '../../agents/AgentRegistry';
 const registry = new AgentRegistry();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('[API] /api/agents called:', req.method, req.body);
   if (req.method === 'GET') {
     // I'll list all agents
     return res.status(200).json({ agents: registry.getAllAgents() });
