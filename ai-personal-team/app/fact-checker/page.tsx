@@ -5,12 +5,12 @@ import axios from "axios";
 
 export default function FactCheckerPage() {
   const [claim, setClaim] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  
+  // Removed image-related state variables
 
   useEffect(() => {
     document.body.style.background =
@@ -158,52 +158,6 @@ export default function FactCheckerPage() {
     setLoading(false);
   }
 
-  async function handleFactCheckImage(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setResult(null);
-    let payload: any = {};
-    if (imageFile) {
-      const formData = new FormData();
-      formData.append("file", imageFile);
-      try {
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadData.url) {
-          setResult(
-            "Image upload failed: " + (uploadData.error || "Unknown error")
-          );
-          setLoading(false);
-          return;
-        }
-        payload.imageUrl = uploadData.url;
-      } catch (err) {
-        setResult("Image upload failed.");
-        setLoading(false);
-        return;
-      }
-    } else if (imageUrl) {
-      payload.imageUrl = imageUrl;
-    } else {
-      setResult("Please provide an image URL or upload a file.");
-      setLoading(false);
-      return;
-    }
-    const res = await fetch("/api/agents", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agentId: "researcher",
-        task: { type: "fact_check_image", payload },
-      }),
-    });
-    const data = await res.json();
-    setResult(data.result || data.error);
-    setLoading(false);
-  }
 
   return (
     <div
@@ -278,60 +232,6 @@ export default function FactCheckerPage() {
           >
             {loading ? "Checking..." : "Check Claim or URL"}
           </button>
-        </form>
-        <form
-          onSubmit={handleFactCheckImage}
-          style={{
-            marginBottom: 32,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Paste image URL here"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            style={{
-              padding: 10,
-              borderRadius: 6,
-              border: "1px solid #888",
-              background: "#232526",
-              color: "#f3f3f3",
-              fontSize: 16,
-            }}
-          />
-          <span style={{ color: '#888', textAlign: 'center' }}>or</span>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-            style={{ color: '#f3f3f3' }}
-          />
-          <button
-            type="submit"
-            disabled={loading || (!imageUrl && !imageFile)}
-            style={{
-              padding: "12px 0",
-              borderRadius: 6,
-              border: "none",
-              background:
-                "linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)",
-              color: "#232526",
-              fontWeight: 700,
-              fontSize: 18,
-              cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-            }}
-          >
-            {loading ? "Checking..." : "Check Image"}
-          </button>
-          {imageFile && (
-            <div style={{ color: '#f3f3f3', fontSize: 14 }}>
-              <strong>Selected file:</strong> {imageFile.name}
-            </div>
-          )}
         </form>
         {loading && (
           <div style={{ textAlign: "center", color: "#ffb347" }}>Checking...</div>
@@ -487,8 +387,7 @@ export default function FactCheckerPage() {
                     await fetch('/api/agents/feedback', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        claim: claim || imageUrl,
+                      body: JSON.stringify({                        claim: claim,
                         result,
                         feedback: 'correct',
                         timestamp: new Date().toISOString(),
@@ -505,11 +404,10 @@ export default function FactCheckerPage() {
                   onClick={async () => {
                     setFeedback('incorrect');
                     setFeedbackSubmitted(true);
-                    await fetch('/api/agents/feedback', {
-                      method: 'POST',
+                    await fetch('/api/agents/feedback', {                      method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        claim: claim || imageUrl,
+                        claim,
                         result,
                         feedback: 'incorrect',
                         timestamp: new Date().toISOString(),
