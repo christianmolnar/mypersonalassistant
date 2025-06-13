@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from '../image-generator.module.css';
 import Link from 'next/link';
 
@@ -15,7 +15,29 @@ const agentTools = [
     id: 'email-writer',
     name: 'Email Writer',
     icon: '✉️',
-    disabled: true
+                            <div 
+                  className={styles.imageResult} 
+                  style={{ display: loading || imageUrl ? 'flex' : 'none' }}
+                  ref={imageResultRef}
+                >
+                  <h2>Generated Image</h2>
+                  {loading ? (
+                    <div className={styles.imageShimmer}></div>
+                  ) : imageUrl ? (
+                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  ) : null}
+                </div>v 
+                  ref={imageResultRef}
+                  className={styles.imageResult} 
+                  style={{ display: loading || imageUrl ? 'flex' : 'none' }}
+                >
+                  <h2>Generated Image</h2>
+                  {loading ? (
+                    <div className={styles.imageShimmer}></div>
+                  ) : imageUrl ? (
+                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  ) : null}
+                </div>led: true
   },
   {
     id: 'meeting-prep',
@@ -45,6 +67,14 @@ export default function ImageGeneratorPage() {
   const [deleting, setDeleting] = useState(false);
   const [activeToolId, setActiveToolId] = useState('image-generator');
   const [showPromptManager, setShowPromptManager] = useState(false);
+  const imageResultRef = useRef<HTMLDivElement>(null);
+
+  // Effect to scroll to image result when loading starts
+  useEffect(() => {
+    if (loading && imageResultRef.current) {
+      imageResultRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [loading]);
 
   // Load prompts from the database on mount
   useEffect(() => {
@@ -389,14 +419,16 @@ export default function ImageGeneratorPage() {
                   disabled={loading || !(customPrompt || selectedPrompt)}
                 >
                   {loading ? 'Generating...' : 'Generate Image'}
-                </button>
-                {error && <div className={styles.error}>{error}</div>}
-                {imageUrl && (
-                  <div className={styles.result}>
-                    <h2>Generated Image</h2>
-                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%' }} />
-                  </div>
-                )}
+                </button>                {error && <div className={styles.error}>{error}</div>}
+                
+                <div className={styles.imageResult} style={{ display: loading || imageUrl ? 'flex' : 'none' }} ref={imageResultRef}>
+                  <h2>Generated Image</h2>
+                  {loading ? (
+                    <div className={styles.imageShimmer}></div>
+                  ) : imageUrl ? (
+                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  ) : null}
+                </div>
               </div>
             )}
           </div>

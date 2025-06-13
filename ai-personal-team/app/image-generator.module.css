@@ -395,3 +395,39 @@
 .minorTick {
   height: 5px;
 }
+
+.imageShimmer {
+  width: 100%;
+  height: 610px; /* Approximates the 16:9 ratio image height for 1792x1024 */
+  background: linear-gradient(90deg, #2a343c 25%, #3a444c 50%, #2a343c 75%);
+  background-size: 200% 100%;
+  border-radius: 8px;
+  margin-top: 15px;
+  animation: shimmer 2s infinite;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border: 1px solid #444;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.imageResult {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.imageResult h2 {
+  margin-bottom: 15px;
+  color: #ffb347;
+  font-size: 22px;
+  font-weight: 600;
+}
