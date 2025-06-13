@@ -141,3 +141,8 @@ projectRoadmap.md
 
 # Personal folder
 personal
+
+# Windows special files
+NUL
+**/NUL
+../NUL

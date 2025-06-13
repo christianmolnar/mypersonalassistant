@@ -1,8 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import type { NextApiRequest, NextApiResponse } from 'next';
 
 const prisma = new PrismaClient();
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     // Fetch all prompts
     const prompts = await prisma.prompt.findMany({ orderBy: { updatedAt: 'desc' } });
