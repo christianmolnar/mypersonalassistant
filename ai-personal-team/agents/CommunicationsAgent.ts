@@ -127,13 +127,13 @@ export class CommunicationsAgent implements Agent {
           result: null, 
           error: `Error generating cover letter: ${error.message}` 
         };
-      }
-    } else if (task.type === 'Generate Image') {
-      const { prompt, referenceImagePath, aspectRatio, resolution } = task.payload as {
+      }    } else if (task.type === 'Generate Image') {
+      const { prompt, referenceImagePath, aspectRatio, resolution, strength } = task.payload as {
         prompt: string,
         referenceImagePath?: string,
         aspectRatio?: string,
-        resolution?: string
+        resolution?: string,
+        strength?: number
       };
       if (!prompt) {
         return { success: false, result: null, error: 'Missing prompt for image generation.' };
@@ -143,7 +143,8 @@ export class CommunicationsAgent implements Agent {
           prompt,
           referenceImagePath,
           aspectRatio: aspectRatio || '16:9',
-          resolution: resolution || '1024x576'
+          resolution: resolution || '1024x576',
+          strength
         });
         return { success: true, result: imageUrl };
       } catch (error: any) {
@@ -263,28 +264,65 @@ export class CommunicationsAgent implements Agent {
 
   /**
    * Generates an image using OpenAI's DALL-E API, optionally using a reference image for background or style matching.
-   */
-  private async generateImageWithOpenAI({
+   */  private async generateImageWithOpenAI({
     prompt,
     referenceImagePath,
     aspectRatio,
-    resolution
+    resolution,
+    strength
   }: {
     prompt: string,
     referenceImagePath?: string,
     aspectRatio?: string,
-    resolution?: string
+    resolution?: string,
+    strength?: number
   }): Promise<string> {
     // Dynamically import openai to avoid issues if not needed elsewhere
     const OpenAI = (await import('openai')).default;
     const { AI_CONFIG } = await import('./ai_config');
-    const openai = new OpenAI({ apiKey: AI_CONFIG.llm.apiKey });
-
-    // Compose the full prompt, optionally referencing the image
+    const openai = new OpenAI({ apiKey: AI_CONFIG.llm.apiKey });    // Compose the full prompt, optionally referencing the image
     let fullPrompt = prompt;
+    const strengthValue = strength || 5; // Default to 5 if not provided
+    
+    // Apply strength in multiple ways to make it more effective
     if (referenceImagePath) {
-      fullPrompt += ` Reference the uploaded photo at ${referenceImagePath} for the background ridge profile and match the shape, slope, and general appearance in the generated image.`;
+      // Use strength to determine how much to emphasize the reference image
+      let influenceLevel = '';
+      let styleTerms = '';
+      
+      if (strengthValue <= 2) {
+        influenceLevel = 'very subtly';
+        styleTerms = 'taking minimal inspiration from';
+      } else if (strengthValue <= 4) {
+        influenceLevel = 'subtly';
+        styleTerms = 'taking light inspiration from';
+      } else if (strengthValue <= 6) {
+        influenceLevel = 'moderately';
+        styleTerms = 'following the style of';
+      } else if (strengthValue <= 8) {
+        influenceLevel = 'strongly';
+        styleTerms = 'closely mimicking the style and composition of';
+      } else {
+        influenceLevel = 'very strongly';
+        styleTerms = 'precisely replicating the style, mood, and composition of';
+      }
+      
+      fullPrompt += ` Reference the uploaded image at ${referenceImagePath} and ${influenceLevel} incorporate its style, colors, composition, and visual elements in the generated image. The final image should be ${styleTerms} the reference while incorporating the prompt details.`;
     }
+    
+    // Add strength as a quality indicator that affects the overall style
+    if (strength) {
+      if (strengthValue <= 3) {
+        fullPrompt += ` Create this image with a simple, minimalist style with fewer details.`;
+      } else if (strengthValue > 3 && strengthValue <= 6) {
+        fullPrompt += ` Create this image with a balanced level of detail and clarity.`;
+      } else if (strengthValue > 6 && strengthValue <= 8) {
+        fullPrompt += ` Create this image with high detail, excellent clarity, and precise elements.`;
+      } else {
+        fullPrompt += ` Create this image with exceptional photorealistic detail, perfect clarity, intricate textures, and meticulous attention to all elements.`;
+      }
+    }
+    
     // DALL-E 3 supports aspect ratio and high-res, but not direct image reference. For true image-to-image, Stable Diffusion or DALL-E edit API is needed.
     // DALL-E 3 supports only certain sizes. Map aspect ratio to allowed size.
     let size: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024';
