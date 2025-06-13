@@ -1,0 +1,35 @@
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background: #232526;
+  color: #f3f3f3;
+  padding: 32px 28px;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+}
+.button {
+  background: #ffb347;
+  color: #232526;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 22px;
+  font-size: 1.1em;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.15s;
+}
+.button:disabled {
+  background: #888;
+  color: #ccc;
+  cursor: not-allowed;
+}
+.error {
+  color: #ff4d4f;
+  margin-top: 12px;
+  font-weight: 600;
+}
+.result {
+  margin-top: 24px;
+  text-align: center;
+}

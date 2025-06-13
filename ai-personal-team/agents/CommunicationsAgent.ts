@@ -22,6 +22,7 @@ export class CommunicationsAgent implements Agent {
     'Edit/Polish Research Papers',
     'Write Resume Cover Letters: I can generate short, concise, and powerful cover letters that highlight your skills and abilities as a strong technology leader, including experience building consulting practices and software solutions.',
     'Convert DOCX to Markdown (Pandoc)', // I've added the new ability here
+    'Generate Image: I can generate photorealistic conceptual renderings or illustrations based on detailed prompts, optionally using a reference image for background or style matching.'
   ];
 
   // I load the tone and style guide for reference in communications
@@ -39,8 +40,11 @@ export class CommunicationsAgent implements Agent {
   }
 
   async handleTask(task: AgentTask): Promise<AgentTaskResult> {
-    // I'll first try to load the tone and style guide for reference
-    const toneAndStyle = await this.loadToneAndStyleGuide();
+    // Only load the tone and style guide for tasks that need it
+    let toneAndStyle: string | null = null;
+    if (task.type === 'Write Cover Letter') {
+      toneAndStyle = await this.loadToneAndStyleGuide();
+    }
     
     // Handle different task types
     if (task.type === 'Convert DOCX to Markdown (Pandoc)') {
@@ -123,6 +127,27 @@ export class CommunicationsAgent implements Agent {
           result: null, 
           error: `Error generating cover letter: ${error.message}` 
         };
+      }
+    } else if (task.type === 'Generate Image') {
+      const { prompt, referenceImagePath, aspectRatio, resolution } = task.payload as {
+        prompt: string,
+        referenceImagePath?: string,
+        aspectRatio?: string,
+        resolution?: string
+      };
+      if (!prompt) {
+        return { success: false, result: null, error: 'Missing prompt for image generation.' };
+      }
+      try {
+        const imageUrl = await this.generateImageWithOpenAI({
+          prompt,
+          referenceImagePath,
+          aspectRatio: aspectRatio || '16:9',
+          resolution: resolution || '1024x576'
+        });
+        return { success: true, result: imageUrl };
+      } catch (error: any) {
+        return { success: false, result: null, error: `Image generation failed: ${error.message}` };
       }
     }
     
@@ -234,5 +259,50 @@ export class CommunicationsAgent implements Agent {
     
     const responsibilities = responsibilitiesSection[1].match(/[-•*]\s+([^\n]+)/g) || [];
     return responsibilities.map(resp => resp.replace(/^[-•*]\s+/, '').trim());
+  }
+
+  /**
+   * Generates an image using OpenAI's DALL-E API, optionally using a reference image for background or style matching.
+   */
+  private async generateImageWithOpenAI({
+    prompt,
+    referenceImagePath,
+    aspectRatio,
+    resolution
+  }: {
+    prompt: string,
+    referenceImagePath?: string,
+    aspectRatio?: string,
+    resolution?: string
+  }): Promise<string> {
+    // Dynamically import openai to avoid issues if not needed elsewhere
+    const OpenAI = (await import('openai')).default;
+    const { AI_CONFIG } = await import('./ai_config');
+    const openai = new OpenAI({ apiKey: AI_CONFIG.llm.apiKey });
+
+    // Compose the full prompt, optionally referencing the image
+    let fullPrompt = prompt;
+    if (referenceImagePath) {
+      fullPrompt += ` Reference the uploaded photo at ${referenceImagePath} for the background ridge profile and match the shape, slope, and general appearance in the generated image.`;
+    }
+    // DALL-E 3 supports aspect ratio and high-res, but not direct image reference. For true image-to-image, Stable Diffusion or DALL-E edit API is needed.
+    // DALL-E 3 supports only certain sizes. Map aspect ratio to allowed size.
+    let size: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024';
+    if (aspectRatio === '16:9' || resolution === '1792x1024') {
+      size = '1792x1024';
+    } else if (aspectRatio === '9:16' || resolution === '1024x1792') {
+      size = '1024x1792';
+    }
+    const response = await openai.images.generate({
+      prompt: fullPrompt,
+      n: 1,
+      size,
+      response_format: 'url',
+      model: 'dall-e-3',
+    });
+    if (!response.data || !response.data[0] || !response.data[0].url) {
+      throw new Error('No image URL returned from OpenAI.');
+    }
+    return response.data[0].url;
   }
 }

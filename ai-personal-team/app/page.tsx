@@ -5,6 +5,13 @@ import { useEffect } from "react";
 // I'll use the real agent list from Agent_Abilities_Library.md
 const workAgents = [
 	{
+		name: "Communications Agent (Image Generator)",
+		description: "Generate photorealistic images from prompts or reference images.",
+		href: "/image-generator",
+		icon: "🖼️",
+		enabled: true,
+	},
+	{
 		name: "Career Development Agent",
 		description: "Resume writing, interview prep, branding, portfolio support.",
 		href: "#",
@@ -256,7 +263,7 @@ export default function MissionControl() {
 								{/* Enabled agents */}
 								{personalAgents.filter((a) => a.enabled).map((agent) => (
 									<Link
-										key={agent.name}
+									key={agent.name}
 										href={agent.href}
 										style={{
 											display: "flex",
