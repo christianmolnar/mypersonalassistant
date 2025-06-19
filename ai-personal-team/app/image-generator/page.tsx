@@ -10,34 +10,11 @@ const agentTools = [
     id: 'image-generator',
     name: 'Image Generator',
     icon: '🖼️'
-  },
-  {
+  },  {
     id: 'email-writer',
     name: 'Email Writer',
     icon: '✉️',
-                            <div 
-                  className={styles.imageResult} 
-                  style={{ display: loading || imageUrl ? 'flex' : 'none' }}
-                  ref={imageResultRef}
-                >
-                  <h2>Generated Image</h2>
-                  {loading ? (
-                    <div className={styles.imageShimmer}></div>
-                  ) : imageUrl ? (
-                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
-                  ) : null}
-                </div>v 
-                  ref={imageResultRef}
-                  className={styles.imageResult} 
-                  style={{ display: loading || imageUrl ? 'flex' : 'none' }}
-                >
-                  <h2>Generated Image</h2>
-                  {loading ? (
-                    <div className={styles.imageShimmer}></div>
-                  ) : imageUrl ? (
-                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
-                  ) : null}
-                </div>led: true
+    disabled: true
   },
   {
     id: 'meeting-prep',
@@ -58,8 +35,8 @@ export default function ImageGeneratorPage() {
   const [customPrompt, setCustomPrompt] = useState('');
   const [referenceImage, setReferenceImage] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [strength, setStrength] = useState(5);
-  const [loading, setLoading] = useState(false);
+  const [strength, setStrength] = useState(5);  const [loading, setLoading] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false); // Track image loading separately
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -67,14 +44,33 @@ export default function ImageGeneratorPage() {
   const [deleting, setDeleting] = useState(false);
   const [activeToolId, setActiveToolId] = useState('image-generator');
   const [showPromptManager, setShowPromptManager] = useState(false);
-  const imageResultRef = useRef<HTMLDivElement>(null);
-
-  // Effect to scroll to image result when loading starts
+  const imageResultRef = useRef<HTMLDivElement>(null);  // Effect to scroll to image result when loading starts
   useEffect(() => {
-    if (loading && imageResultRef.current) {
-      imageResultRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if ((loading || imageLoading) && imageResultRef.current) {
+      // Smooth scroll to the image result area
+      setTimeout(() => {
+        imageResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
     }
-  }, [loading]);
+  }, [loading, imageLoading]);
+  // Effect to handle image loading timeout
+  useEffect(() => {
+    // Only set up a timeout if we're actually loading an image
+    if (imageUrl && imageLoading) {
+      console.log("Setting up image load timeout");
+      
+      // Safety timeout - if image doesn't load within 15 seconds, clear loading state
+      const timeout = setTimeout(() => {
+        console.log("Image load timeout - resetting loading state");
+        setImageLoading(false);
+      }, 15000);
+      
+      return () => {
+        console.log("Clearing image load timeout");
+        clearTimeout(timeout);
+      };
+    }
+  }, [imageUrl, imageLoading]);
 
   // Load prompts from the database on mount
   useEffect(() => {
@@ -150,21 +146,24 @@ export default function ImageGeneratorPage() {
   
   const handleStrengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setStrength(parseFloat(e.target.value));
-  };
-
-  const handleGenerate = async () => {
+  };  const handleGenerate = async () => {
+    // Set initial states for generation process
     setLoading(true);
+    setImageLoading(false); 
     setError('');
-    setImageUrl('');
+    setImageUrl(''); // Clear previous image URL
+    
     try {
       const prompt = customPrompt || selectedPrompt;
+      console.log('Generating image with prompt:', prompt);
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agentId: 'communications',
           task: {
-            type: 'Generate Image',            payload: {
+            type: 'Generate Image',
+            payload: {
               prompt,
               referenceImagePath: referenceImage,
               aspectRatio: '16:9',
@@ -174,16 +173,29 @@ export default function ImageGeneratorPage() {
           },
         }),
       });
+      
       const data = await res.json();
+      console.log('Image generation response:', data);
+      
       if (data.success && data.result) {
+        console.log('Setting image URL:', data.result);
+        // API call is done - we have a URL
+        setLoading(false);
+        // The URL will trigger the image to load
         setImageUrl(data.result);
+        // Image is now loading
+        setImageLoading(true);
       } else {
+        console.log('Image generation failed:', data.error);
         setError(data.error || 'Image generation failed.');
+        setLoading(false);
+        setImageLoading(false);
       }
     } catch (err: any) {
+      console.error('Error generating image:', err);
       setError(err.message || 'Unknown error');
-    } finally {
       setLoading(false);
+      setImageLoading(false);
     }
   };
 
@@ -242,7 +254,25 @@ export default function ImageGeneratorPage() {
     } finally {
       setDeleting(false);
     }
+  };  // Add a dedicated function to handle image loading completion
+  const handleImageLoad = () => {
+    console.log("Image loaded successfully, hiding shimmer");
+    // Ensure we remove loading states with a slight delay to allow for smooth transition
+    setTimeout(() => {
+      setImageLoading(false);
+    }, 300);
   };
+
+  // Debug log for state changes
+  useEffect(() => {
+    console.log('State updated:', { 
+      loading, 
+      imageLoading, 
+      hasImageUrl: !!imageUrl,
+      promptSelected: !!selectedPrompt || !!customPrompt
+    });
+  }, [loading, imageLoading, imageUrl, selectedPrompt, customPrompt]);
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -308,9 +338,8 @@ export default function ImageGeneratorPage() {
                   </table>
                 </div>
                 
-                <div className={styles.promptActions}>
-                  <button
-                    className={styles.button}
+                <div className={styles.promptActions}>                  <button
+                    className={`${styles.button} ${styles.deleteButton}`}
                     onClick={handleDeletePrompts}
                     disabled={deleting || selectedPrompts.length === 0}
                   >
@@ -350,9 +379,8 @@ export default function ImageGeneratorPage() {
                   placeholder="Paste or write your own prompt here..."
                   className={styles.formControl}
                 />
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-                  <button
-                    className={styles.button}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>                  <button
+                    className={`${styles.button} ${styles.saveButton}`}
                     onClick={handleSavePrompt}
                     disabled={saving || !customPrompt.trim()}
                   >
@@ -360,7 +388,7 @@ export default function ImageGeneratorPage() {
                   </button>
                   
                   <button
-                    className={styles.button}
+                    className={`${styles.button} ${styles.manageButton}`}
                     onClick={() => setShowPromptManager(true)}
                   >
                     Manage Prompts
@@ -412,22 +440,34 @@ export default function ImageGeneratorPage() {
                       ))}
                     </div>
                   </div>
-                </div>
-                <button
-                  className={styles.button}
+                </div>                <button
+                  className={`${styles.button} ${styles.generateButton}`}
                   onClick={handleGenerate}
-                  disabled={loading || !(customPrompt || selectedPrompt)}
+                  disabled={loading || imageLoading || !(customPrompt || selectedPrompt)}
                 >
-                  {loading ? 'Generating...' : 'Generate Image'}
-                </button>                {error && <div className={styles.error}>{error}</div>}
-                
-                <div className={styles.imageResult} style={{ display: loading || imageUrl ? 'flex' : 'none' }} ref={imageResultRef}>
+                  {loading ? 'Generating...' : imageLoading ? 'Loading Image...' : 'Generate Image'}
+                </button>{error && <div className={styles.error}>{error}</div>}                <div className={styles.imageResult} style={{ display: (loading || imageLoading || imageUrl) ? 'flex' : 'none' }} ref={imageResultRef}>
                   <h2>Generated Image</h2>
-                  {loading ? (
-                    <div className={styles.imageShimmer}></div>
-                  ) : imageUrl ? (
-                    <img src={imageUrl} alt="Generated" style={{ maxWidth: '100%', borderRadius: '8px' }} />
-                  ) : null}
+                  <div className={styles.imageContainer}>
+                    {/* Shimmer is only shown during active loading */}
+                    {(loading || imageLoading) && (
+                      <div className={styles.imageShimmer}></div>
+                    )}
+                    {/* Image is always rendered when we have a URL, but opacity controlled by CSS */}
+                    {imageUrl && (
+                      <img 
+                        src={imageUrl} 
+                        alt="Generated" 
+                        className={`${styles.generatedImage} ${!imageLoading ? styles.visible : ''}`} 
+                        onLoad={handleImageLoad}
+                        onError={() => {
+                          console.error("Image failed to load");
+                          setImageLoading(false);
+                          setError("Failed to load the generated image. Please try again.");
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             )}
