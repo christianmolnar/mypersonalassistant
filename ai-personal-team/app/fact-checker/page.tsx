@@ -7,14 +7,9 @@ export default function FactCheckerPage() {
   const [claim, setClaim] = useState("");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   
-  // Removed image-related state variables
-
   useEffect(() => {
-    document.body.style.background =
-      "linear-gradient(135deg, #181a1b 0%, #232526 100%)";
+    document.body.style.background = "linear-gradient(135deg, #181a1b 0%, #232526 100%)";
     document.body.style.color = "#f3f3f3";
     document.body.style.fontFamily = "Segoe UI, Arial, sans-serif";
     return () => {
@@ -24,185 +19,59 @@ export default function FactCheckerPage() {
     };
   }, []);
 
-  async function fetchArticleText(url: string): Promise<{ text: string | null; error: string | null }> {
-    console.log('Fetching article text for URL:', url);
-    try {
-      const res = await axios.post("/api/agents", {
-        agentId: "researcher",
-        task: { type: "fetch_webpage_text", payload: { url } },
-      });
-      console.log('API Response:', res);
-      const data = res.data;
-      console.log('API Data:', data);
-      
-      if (data && data.result && data.result.text) {
-        console.log('Successfully extracted text, length:', data.result.text.length);
-        return { text: data.result.text, error: null };
-      }
-      if (data && data.error) {
-        console.error('API returned error:', data.error);
-        return { text: null, error: data.error };
-      }
-      console.error('Unknown response format:', data);
-      return { text: null, error: "Unknown error fetching article text." };
-    } catch (err) {
-      console.error('Network or server error:', err);
-      return { text: null, error: "Network or server error fetching article text." };
-    }
-  }
-
   async function handleFactCheck(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
-    const isUrl = claim.match(/^https?:\/\//i);
-    if (isUrl) {
-      // Fetch article text
-      const { text: articleText, error: fetchError } = await fetchArticleText(claim);
-      if (fetchError) {
-        setResult(fetchError);
-        setLoading(false);
-        return;
-      }
-      if (!articleText) {
-        setResult("Could not fetch article text. Please check the URL or try again later.");
-        setLoading(false);
-        return;
-      }
-      
-      console.log('Article text extracted, length:', articleText.length);
-      console.log('First 200 chars:', articleText.substring(0, 200));
-      
-      // Extract main claim(s) using LLM
-      try {
-        console.log('Attempting to extract claims...');
-        const extractRes = await fetch("/api/agents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            agentId: "researcher",
-            task: { type: "extract_claims_from_text", payload: { text: articleText, url: claim } },
-          }),
-        });
-        
-        if (!extractRes.ok) {
-          throw new Error(`HTTP error! status: ${extractRes.status}`);
-        }
-        
-        const extractData = await extractRes.json();
-        console.log('Extract claims response:', extractData);
-        
-        if (extractData.error) {
-          setResult(`Error extracting claims: ${extractData.error}`);
-          setLoading(false);
-          return;
-        }
-        
-        // Check all possible locations for claims
-        const mainClaim = extractData.result?.mainClaim || 
-                         extractData.result?.claims?.[0] || 
-                         extractData.mainClaim || 
-                         extractData.claims?.[0] || 
-                         null;
 
-        if (!mainClaim) {
-          console.error('No main claim found in response:', extractData);
-          setResult("Could not find any factual claims to check in the article.");
-          setLoading(false);
-          return;
-        }
-        
-        console.log('Main claim extracted:', mainClaim);
-        
-        // Fact-check the extracted claim
-        const factCheckRes = await fetch("/api/agents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            agentId: "researcher",
-            task: { type: "fact_check_text", payload: { claim: mainClaim } },
-          }),
-        });
-        
-        if (!factCheckRes.ok) {
-          throw new Error(`HTTP error! status: ${factCheckRes.status}`);
-        }
-        
-        const factCheckData = await factCheckRes.json();
-        console.log('Fact check response:', factCheckData);
-        
-        if (factCheckData.error) {
-          setResult(`Error fact-checking claim: ${factCheckData.error}`);
-        } else {
-          setResult(factCheckData.result || 'No result from fact-check');
-        }
-    } catch (err: any) {
-      console.error('Error in fact-checking process:', err);
-      setResult(`Error processing article: ${err?.message || 'Unknown error occurred'}`);
+    try {
+      console.log('Sending fact-check request for:', claim);
+      const response = await axios.post("/api/rss-test", { query: claim });
+      console.log('RSS fact-check API response:', response.data);
+      setResult(response.data);
+    } catch (error) {
+      console.error("Error fetching RSS fact-check results:", error);
+      setResult({ error: "Failed to fetch fact-check results. Please try again." });
     } finally {
       setLoading(false);
     }
-    return;
   }
-    // Otherwise, treat as claim/quote
-    const res = await fetch("/api/agents", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agentId: "researcher",
-        task: { type: "fact_check_text", payload: { claim } },
-      }),
-    });
-    const data = await res.json();
-    setResult(data.result || data.error);
-    setLoading(false);
-  }
-
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100vw",
-        background: "linear-gradient(135deg, #181a1b 0%, #232526 100%)",
-        color: "#f3f3f3",
-        fontFamily: "Segoe UI, Arial, sans-serif",
-        padding: 0,
-        margin: 0,
-      }}
-    >
-      <main
-        style={{
-          maxWidth: 600,
-          margin: "0 auto",
-          padding: 32,
-          background: "rgba(34, 40, 49, 0.98)",
-          borderRadius: 16,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-          minHeight: 600,
-        }}
-      >
-        <h1
-          style={{
-            textAlign: "center",
-            color: "#ffb347",
-            letterSpacing: 1,
-          }}
-        >
-          Research Agent: Fact Checker
+    <div style={{
+      minHeight: "100vh",
+      width: "100%",
+      padding: "20px",
+      background: "linear-gradient(135deg, #181a1b 0%, #232526 100%)",
+      color: "#f3f3f3",
+      fontFamily: "Segoe UI, Arial, sans-serif"
+    }}>
+      <main style={{
+        maxWidth: 600,
+        margin: "0 auto",
+        padding: 32,
+        background: "rgba(34, 40, 49, 0.98)",
+        borderRadius: 16,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+        minHeight: 600,
+      }}>
+        <h1 style={{
+          textAlign: "center",
+          color: "#ffb347",
+          letterSpacing: 1,
+        }}>
+          RSS-Based Fact Checker
         </h1>
-        <form
-          onSubmit={handleFactCheck}
-          style={{
-            marginBottom: 32,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
+        
+        <form onSubmit={handleFactCheck} style={{
+          marginBottom: 32,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}>
           <input
             type="text"
-            placeholder="Paste News Claim, Quote, or URL here"
+            placeholder="Enter a claim or URL to fact-check"
             value={claim}
             onChange={(e) => setClaim(e.target.value)}
             style={{
@@ -214,6 +83,7 @@ export default function FactCheckerPage() {
               fontSize: 16,
             }}
           />
+          
           <button
             type="submit"
             disabled={loading || !claim}
@@ -221,8 +91,7 @@ export default function FactCheckerPage() {
               padding: "12px 0",
               borderRadius: 6,
               border: "none",
-              background:
-                "linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)",
+              background: "linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)",
               color: "#232526",
               fontWeight: 700,
               fontSize: 18,
@@ -233,195 +102,185 @@ export default function FactCheckerPage() {
             {loading ? "Checking..." : "Check Claim or URL"}
           </button>
         </form>
+
         {loading && (
-          <div style={{ textAlign: "center", color: "#ffb347" }}>Checking...</div>
+          <div style={{ textAlign: "center", color: "#ffb347" }}>
+            Checking fact sources from RSS feeds...
+          </div>
         )}
+
         {result && (
-          <div
-            style={{
-              background: "rgba(44, 62, 80, 0.98)",
-              borderRadius: 12,
-              padding: 24,
-              marginTop: 16,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            }}
-          >
-            <strong>Result:</strong>
-            {typeof result === 'string' ? (
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', padding: 16, borderRadius: 8 }}>{result}</pre>
+          <div style={{
+            background: "rgba(44, 62, 80, 0.98)",
+            borderRadius: 12,
+            padding: 24,
+            marginTop: 16,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+          }}>
+            {result.error ? (
+              <p style={{ color: "red" }}>{result.error}</p>
             ) : (
-              <div>
-                {result.primarySource && (
-                  <div style={{ marginBottom: 12 }}>
-                    <strong style={{ color: '#ffb347' }}>Primary Source: {result.primarySource}</strong>
-                    {result.primarySource === 'Wikipedia' && result.wikipediaUrl && (
-                      <span style={{ marginLeft: 8 }}>
-                        (<a href={result.wikipediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>View on Wikipedia</a>)
-                      </span>
+              <div>                <div style={{ marginBottom: 16 }}>
+                  <strong style={{ color: "#ffb347", fontSize: 18 }}>Decision: </strong>
+                  <span style={{ 
+                    color: result.decision === "true" ? "#4caf50" : result.decision === "false" ? "#f44336" : "#ffcc33",
+                    fontWeight: "bold",
+                    fontSize: 18
+                  }}>
+                    {result.decision === "true" ? "True" : result.decision === "false" ? "False" : "Inconclusive"}
+                  </span>
+                  
+                  {result.confidence !== undefined && (
+                    <div style={{ 
+                      marginTop: 8,
+                      fontSize: 14,
+                      color: '#ccc'
+                    }}>
+                      Confidence: {Math.round(result.confidence * 100)}%
+                      <div style={{
+                        width: '100%',
+                        height: 6,
+                        backgroundColor: '#444',
+                        marginTop: 4,
+                        borderRadius: 3,
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${Math.round(result.confidence * 100)}%`,
+                          backgroundColor: result.confidence > 0.7 ? '#4caf50' : 
+                                          result.confidence > 0.4 ? '#ffcc33' : '#f44336',
+                          borderRadius: 3
+                        }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                  {result.claimSummary && (
+                  <div style={{
+                    margin: '16px 0',
+                    padding: '12px 16px',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    borderRadius: 8,
+                    fontSize: 15,
+                    lineHeight: 1.5
+                  }}>
+                    <strong style={{ color: "#ffb347", display: "block", marginBottom: 8 }}>Claim Summary:</strong>
+                    {result.claimSummary}
+                  </div>
+                )}
+                
+                {result.reason && (
+                  <div style={{
+                    margin: '16px 0',
+                    padding: '12px 16px',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: 8,
+                    fontSize: 15,
+                    lineHeight: 1.5
+                  }}>
+                    <strong style={{ color: "#ffb347", display: "block", marginBottom: 8 }}>Reason:</strong>
+                    {result.reason}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 24, marginBottom: 16 }}>
+                  <h3 style={{ color: "#4caf50" }}>Supporting Sources:</h3>
+                  {result.for && result.for.length > 0 ? (
+                    <ul style={{ listStyle: "disc", paddingLeft: 20 }}>
+                      {result.for.map((source: any, index: number) => (
+                        <li key={`for-${index}`} style={{ marginBottom: 8 }}>
+                          <a 
+                            href={source.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: "#8bc34a", textDecoration: "underline" }}
+                          >
+                            {source.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No supporting sources found</p>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ color: "#f44336" }}>Opposing Sources:</h3>
+                  {result.against && result.against.length > 0 ? (
+                    <ul style={{ listStyle: "disc", paddingLeft: 20 }}>
+                      {result.against.map((source: any, index: number) => (
+                        <li key={`against-${index}`} style={{ marginBottom: 8 }}>
+                          <a 
+                            href={source.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: "#ff7043", textDecoration: "underline" }}
+                          >
+                            {source.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No opposing sources found</p>
+                  )}
+                </div>                {/* Inconclusive sources removed as requested */}{result && !result.error && (
+                  <div style={{ 
+                    marginTop: 32, 
+                    padding: 16, 
+                    borderTop: '1px solid rgba(255,255,255,0.1)',
+                    textAlign: 'center' 
+                  }}>
+                    <h3 style={{ color: "#ffb347", marginBottom: 12 }}>Was this fact-check helpful?</h3>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                      <button 
+                        onClick={() => alert('Thank you for your feedback!')}
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: 4,
+                          border: "none",
+                          background: "rgba(76, 175, 80, 0.2)",
+                          color: "#4caf50",
+                          cursor: "pointer",
+                        }}
+                      >
+                        👍 Yes
+                      </button>
+                      <button 
+                        onClick={() => alert('We appreciate your feedback and will work to improve our fact-checking!')}
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: 4,
+                          border: "none",
+                          background: "rgba(244, 67, 54, 0.2)",
+                          color: "#f44336",
+                          cursor: "pointer",
+                        }}
+                      >
+                        👎 No
+                      </button>
+                    </div>
+                    
+                    {result.debug && (
+                      <div style={{ 
+                        marginTop: 24, 
+                        fontSize: 12, 
+                        color: '#aaa', 
+                        textAlign: 'left',
+                        padding: 12,
+                        background: 'rgba(0,0,0,0.2)',
+                        borderRadius: 4
+                      }}>
+                        <h4>Debug Information</h4>
+                        <p>Total articles examined: {result.debug.totalArticlesFound || 0}</p>
+                        <p>Relevant articles found: {result.debug.relevantArticlesFound || 0}</p>
+                        <p>Original input: {result.debug.originalInput || claim}</p>
+                      </div>
                     )}
                   </div>
                 )}
-                {result.summary && (
-                  <div style={{ marginBottom: 12 }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6, marginTop: 4 }}>{result.summary}</pre>
-                  </div>
-                )}
-                {result.llmInitialAnswer && result.primarySource === 'OpenAI' && (
-                  <div style={{ marginBottom: 12 }}>
-                    <strong style={{ color: '#ffb347' }}>OpenAI LLM Initial Answer:</strong>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6, marginTop: 4 }}>{result.llmInitialAnswer}</pre>
-                  </div>
-                )}
-                {result.decision && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Decision:</strong> <span style={{ color: result.decision === 'Likely false' ? '#ff6f61' : '#ffb347' }}>{result.decision}</span>
-                  </div>
-                )}
-                {result.reasons && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Top Reasons:</strong>
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
-                      {result.reasons.map((reason: string, i: number) => (
-                        <li key={i}>{reason}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.guidance && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Guidance:</strong>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#232526', color: '#ffcc33', padding: 8, borderRadius: 6 }}>{result.guidance}</pre>
-                  </div>
-                )}
-                {result.sources && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Sources:</strong>
-                    <ul style={{ listStyle: 'disc', paddingLeft: 20 }}>
-                      {Object.entries(result.sources).map(([key, src]: [string, any], i: number) => (
-                        src && src.summary && (
-                          <li key={key} style={{ marginBottom: 12 }}>
-                            <div style={{ fontWeight: 'bold', fontSize: 16, color: '#ffcc33', textDecoration: 'underline' }}>{key.charAt(0).toUpperCase() + key.slice(1)}: {src.summary}</div>
-                            {src.quote && (
-                              <details style={{ marginTop: 6 }}>
-                                <summary style={{ cursor: 'pointer', color: '#ffb347', fontWeight: 500 }}>Show full quoted source</summary>
-                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#181a1b', color: '#f3f3f3', padding: 8, borderRadius: 6, marginTop: 4 }}>{src.quote}</pre>
-                              </details>
-                            )}
-                            {src.wikipediaUrl && (
-                              <div><a href={src.wikipediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>View on Wikipedia</a></div>
-                            )}
-                            {src.googleSearch && (
-                              <div><a href={src.googleSearch} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>Google Search</a></div>
-                            )}
-                          </li>
-                        )
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.googleSearch && (
-                  <div style={{ marginBottom: 8 }}>
-                    <a href={result.googleSearch} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>Google Search for Claim</a>
-                  </div>
-                )}
-                {result.cheatSheet && (
-                  <div style={{ marginBottom: 8, fontSize: 13, color: '#888' }}>{result.cheatSheet}</div>
-                )}
-                {result.reverseImageLinks && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Reverse Image Search Links:</strong>
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
-                      {result.reverseImageLinks.map((link: string) => (
-                        <li key={link}>
-                          <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>{link}</a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.factCheckResults && result.factCheckResults.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Google Fact Check Results:</strong>
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
-                      {result.factCheckResults.map((item: any, i: number) => (
-                        <li key={i} style={{ marginBottom: 8 }}>
-                          <div style={{ color: '#ffb347', fontWeight: 600 }}>{item.text || item.claimReview?.[0]?.title}</div>
-                          {item.claimReview && item.claimReview.length > 0 && (
-                            <ul style={{ margin: 0, paddingLeft: 16 }}>
-                              {item.claimReview.map((review: any, j: number) => (
-                                <li key={j}>
-                                  <span style={{ color: '#ffcc33' }}>{review.publisher?.name}:</span> {review.text} (<a href={review.url} target="_blank" rel="noopener noreferrer" style={{ color: '#ffcc33', textDecoration: 'underline' }}>{review.title}</a>)
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {result.semanticMatches && result.semanticMatches.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Top Semantic News Matches:</strong>
-                    <ul style={{ margin: 0, paddingLeft: 20 }}>
-                      {result.semanticMatches.map((match: any, i: number) => (
-                        <li key={i}>
-                          <span style={{ color: '#ffcc33' }}>{(match.similarity * 100).toFixed(1)}%</span> match: {match.headline}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            {result && !feedbackSubmitted && (
-              <div style={{ textAlign: 'center', marginTop: 24 }}>
-                <span style={{ marginRight: 12, color: '#ccc' }}>Was this answer correct?</span>
-                <button
-                  style={{
-                    background: '#4caf50', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', marginRight: 8, fontWeight: 600, cursor: 'pointer', fontSize: 15
-                  }}
-                  onClick={async () => {
-                    setFeedback('correct');
-                    setFeedbackSubmitted(true);
-                    await fetch('/api/agents/feedback', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({                        claim: claim,
-                        result,
-                        feedback: 'correct',
-                        timestamp: new Date().toISOString(),
-                      }),
-                    });
-                  }}
-                >
-                  Yes
-                </button>
-                <button
-                  style={{
-                    background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, cursor: 'pointer', fontSize: 15
-                  }}
-                  onClick={async () => {
-                    setFeedback('incorrect');
-                    setFeedbackSubmitted(true);
-                    await fetch('/api/agents/feedback', {                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        claim,
-                        result,
-                        feedback: 'incorrect',
-                        timestamp: new Date().toISOString(),
-                      }),
-                    });
-                  }}
-                >
-                  No
-                </button>
-              </div>
-            )}
-            {feedbackSubmitted && (
-              <div style={{ textAlign: 'center', marginTop: 18, color: '#ffb347', fontWeight: 600 }}>
-                Thank you for your feedback!
               </div>
             )}
           </div>

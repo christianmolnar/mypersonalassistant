@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import axios from "axios";
 
 // I'll use the real agent list from Agent_Abilities_Library.md
 const workAgents = [
 	{
-		name: "Communications Agent (Image Generator)",
+		name: "Communications Agent",
 		description: "Generate photorealistic images from prompts or reference images.",
 		href: "/image-generator",
 		icon: "🖼️",
@@ -120,7 +121,19 @@ const personalAgents = [
 	},
 ];
 
+interface FactCheckResult {
+	decision: string;
+	sources: {
+		for: { title: string; link: string }[];
+		against: { title: string; link: string }[];
+		inconclusive: { title: string; link: string }[];
+	};
+}
+
 export default function MissionControl() {
+	const [query, setQuery] = useState("");
+	const [result, setResult] = useState<FactCheckResult | null>(null);
+
 	useEffect(() => {
 		document.body.style.background =
 			"linear-gradient(135deg, #181a1b 0%, #232526 100%)";
@@ -132,6 +145,15 @@ export default function MissionControl() {
 			document.body.style.fontFamily = "";
 		};
 	}, []);
+
+	const handleFactCheck = async () => {
+		try {
+			const response = await axios.get(`/api/rss-test`, { params: { query } });
+			setResult(response.data);
+		} catch (error) {
+			console.error("Error fetching fact-check result:", error);
+		}
+	};
 
 	return (
 		<>
@@ -396,6 +418,110 @@ export default function MissionControl() {
 							</div>
 						</div>
 					)}
+					{/* Fact-Checking Tool Section */}
+					<div style={{ marginTop: 40 }}>
+						<h2
+							style={{
+								color: "#ffb347",
+								fontSize: 20,
+								marginBottom: 16,
+								textAlign: "center",
+							}}
+						>
+							Fact-Checking Tool
+						</h2>
+						<div style={{ textAlign: "center", marginBottom: 20 }}>
+							<input
+								type="text"
+								placeholder="Enter a fact-check query..."
+								value={query}
+								onChange={(e) => setQuery(e.target.value)}
+								style={{
+									padding: 10,
+									width: "80%",
+									borderRadius: 5,
+									border: "1px solid #ccc",
+								}}
+							/>
+							<button
+								onClick={handleFactCheck}
+								style={{
+									marginLeft: 10,
+									padding: "10px 20px",
+									borderRadius: 5,
+									background: "#ffb347",
+									color: "#fff",
+									border: "none",
+									cursor: "pointer",
+								}}
+							>
+								Check
+							</button>
+						</div>
+						{result && (
+							<div
+								style={{
+									background: "#232526",
+									padding: 20,
+									borderRadius: 10,
+									color: "#f3f3f3",
+								}}
+							>
+								<h3>Decision: {result.decision}</h3>
+								<div>
+									<h4>For:</h4>
+									<ul>
+										{result.sources.for.map((article, index) => (
+											<li key={index}>
+												<a
+													href={article.link}
+													target="_blank"
+													rel="noopener noreferrer"
+													style={{ color: "#ffb347" }}
+												>
+													{article.title}
+												</a>
+											</li>
+										))}
+									</ul>
+								</div>
+								<div>
+									<h4>Against:</h4>
+									<ul>
+										{result.sources.against.map((article, index) => (
+											<li key={index}>
+												<a
+													href={article.link}
+													target="_blank"
+													rel="noopener noreferrer"
+													style={{ color: "#ffb347" }}
+												>
+													{article.title}
+												</a>
+											</li>
+										))}
+									</ul>
+								</div>
+								<div>
+									<h4>Inconclusive:</h4>
+									<ul>
+										{result.sources.inconclusive.map((article, index) => (
+											<li key={index}>
+												<a
+													href={article.link}
+													target="_blank"
+													rel="noopener noreferrer"
+													style={{ color: "#ffb347" }}
+												>
+													{article.title}
+												</a>
+											</li>
+										))}
+									</ul>
+								</div>
+							</div>
+						)}
+					</div>
 				</main>
 			</div>
 		</>
