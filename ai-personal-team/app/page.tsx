@@ -6,7 +6,7 @@ import axios from "axios";
 // I'll use the real agent list from Agent_Abilities_Library.md
 const workAgents = [
 	{
-		name: "Communications Agent",
+		name: "Image Generator",
 		description: "Generate photorealistic images from prompts or reference images.",
 		href: "/image-generator",
 		icon: "🖼️",
@@ -24,7 +24,7 @@ const workAgents = [
 		description: "Email, meetings, business writing, proposals.",
 		href: "#",
 		icon: "✉️",
-		enabled: false,
+		enabled: true,
 	},
 	{
 		name: "Growth & Feedback Agent",
@@ -82,6 +82,13 @@ const personalAgents = [
 		description: "Lookup vinyl record info, prices, and metadata.",
 		href: "/vinyl-info-page",
 		icon: "💿",
+		enabled: true,
+	},
+	{
+		name: "Memorias-AI",
+		description: "Record and transcribe stories in Argentine Spanish accent.",
+		href: "/memorias-ai",
+		icon: "🎙️",
 		enabled: true,
 	},
 	{
