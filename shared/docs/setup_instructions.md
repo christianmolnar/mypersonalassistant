@@ -4,6 +4,28 @@ This document outlines all the requirements and step-by-step instructions to set
 
 ---
 
+## **Prerequisites**
+
+Before proceeding, ensure the following tools are installed and accessible in your shell:
+
+1. **VS Code CLI**:
+   - Required for installing extensions via the terminal.
+   - Follow [VS Code CLI setup instructions](https://code.visualstudio.com/docs/editor/command-line).
+
+2. **Node.js and npm**:
+   - Required for installing global tools and dependencies.
+   - Download and install the latest LTS version from [Node.js](https://nodejs.org/).
+
+3. **Chocolatey** (Windows only):
+   - Required for installing Pandoc.
+   - Follow [Chocolatey setup instructions](https://chocolatey.org/install).
+
+4. **Git**:
+   - Required for version control.
+   - Download and install from [Git](https://git-scm.com/).
+
+---
+
 ## **1. Install VS Code Extensions**
 
 Install the following extensions in Visual Studio Code:
@@ -57,11 +79,11 @@ Install the following extensions in Visual Studio Code:
      code --install-extension rbbit.typescript-hero
      ```
 
-8. **Vercel** (`vercel.vercel`):
+8. **Vercel** (`weiskopfsodefa.vercel-vscode-by-sodefa`):
    - For deploying and managing Vercel projects.
    - Install via VS Code Marketplace or run:
      ```bash
-     code --install-extension vercel.vercel
+     code --install-extension weiskopfsodefa.vercel-vscode-by-sodefa
      ```
 
 9. **GitLens** (`eamodio.gitlens`):
