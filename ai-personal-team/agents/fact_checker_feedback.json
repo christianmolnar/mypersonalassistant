@@ -247,5 +247,29 @@
     },
     "feedback": "incorrect",
     "timestamp": "2025-06-04T06:19:22.692Z"
+  },
+  {
+    "claim": "Trump just closed the deal with china on tariffs",
+    "result": {
+      "sources": {
+        "wikipedia": null,
+        "google": {
+          "summary": "It brought Trump's new US tariffs on Chinese products down from 145% to 30%, while Beijing slashed levies on US imports to 10% and promised to ...",
+          "googleSearch": "https://www.google.com/search?q=Trump%20just%20closed%20the%20deal%20with%20china%20on%20tariffs",
+          "primarySource": "Google"
+        },
+        "openai": {
+          "summary": "False. As of today, Donald Trump is not in office; the current President of the United States is someone else. Therefore, any deal made by Trump regarding tariffs would not be valid at this time.",
+          "primarySource": "OpenAI"
+        }
+      },
+      "synthesizedDecision": "Based on the information provided from OpenAI, it can be determined that the statement from Google is inaccurate. Since Donald Trump is not currently in office, any deal or changes in tariffs made by him would not be valid. Therefore, the correct information is that there has been no recent change in tariffs between the US and China involving Donald Trump.",
+      "primarySource": "Synthesis",
+      "summary": "Based on the information provided from OpenAI, it can be determined that the statement from Google is inaccurate. Since Donald Trump is not currently in office, any deal or changes in tariffs made by him would not be valid. Therefore, the correct information is that there has been no recent change in tariffs between the US and China involving Donald Trump.",
+      "googleSearch": "https://www.google.com/search?q=Trump%20just%20closed%20the%20deal%20with%20china%20on%20tariffs",
+      "decision": "False"
+    },
+    "feedback": "incorrect",
+    "timestamp": "2025-06-13T03:49:07.446Z"
   }
 ]

@@ -141,3 +141,23 @@ projectRoadmap.md
 
 # Personal folder
 personal
+
+# Ignore Word documents
+*.docx
+
+# Ignore temporary and backup files
+*.tmp
+*.bak
+
+# Ignore Markdown files in specific folders
+personal/Projects_and_Materials/**/*.md
+
+# Ignore generated files
+personal/Projects_and_Materials/**/*.pdf
+personal/Projects_and_Materials/**/*.docx
+
+# Windows special files
+NUL
+**/NUL
+../NUL
+.vercel

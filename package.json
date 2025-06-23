@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "@azure/identity": "^4.9.0"
+    "@azure/identity": "^4.9.0",
+    "natural": "^8.1.0"
   },
   "devDependencies": {
     "@types/formidable": "^3.4.5"
