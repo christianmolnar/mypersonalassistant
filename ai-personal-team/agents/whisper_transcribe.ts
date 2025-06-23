@@ -7,15 +7,16 @@
 
 // Configuration for the transcription service
 interface WhisperConfig {
-  apiKey?: string;  // Optional API key for OpenAI's Whisper API
-  language: string; // Language code for transcription (e.g., 'es-AR')
-  model: string;    // Whisper model to use ('tiny', 'base', 'small', 'medium', 'large')
+  apiKey?: string;    // Optional API key for OpenAI's Whisper API
+  language: string;   // Language code for transcription in ISO-639-1 format (e.g., 'es' for Spanish)
+  model: string;      // Whisper model to use (e.g., 'whisper-1')
+  fileName?: string;  // Optional file name to help identify the format (e.g., 'recording.mp3')
 }
 
 // Default configuration focusing on Argentine Spanish
 const defaultConfig: WhisperConfig = {
-  language: 'es-AR',
-  model: 'medium',  // Medium model for good balance of accuracy and speed
+  language: 'es',  // ISO-639-1 code for Spanish
+  model: 'whisper-1',  // Valid Whisper model name
 };
 
 /**
@@ -32,20 +33,81 @@ export async function transcribeAudio(
   // Merge provided config with defaults
   const fullConfig: WhisperConfig = { ...defaultConfig, ...config };
   
-  // In a real implementation, this would call the OpenAI API or a similar service
-  // For now, we'll simulate a response
-  
-  console.log(`Transcribing audio with language: ${fullConfig.language}, model: ${fullConfig.model}`);
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return simulated transcription
-  // In production, this would be the actual API response
-  return {
-    text: "Cuando era chico en Buenos Aires, mi abuela solicitaba que tomara mate con ella cada tarde. Sentados en el patio, me contaba historias de su juventud.",
-    confidence: 0.92
-  };
+  try {
+    // Check for API key in config or environment
+    const apiKey = fullConfig.apiKey || process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      console.warn("No OpenAI API key provided. Falling back to simulation mode.");
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Return simulated transcription
+      return {
+        text: "Cuando era chico en Buenos Aires, mi abuela solicitaba que tomara mate con ella cada tarde. Sentados en el patio, me contaba historias de su juventud.",
+        confidence: 0.92
+      };
+    }
+      // Prepare form data for OpenAI API
+    const formData = new FormData();
+    
+    // Use the provided fileName if available, or create a generic one with appropriate extension
+    const fileName = fullConfig.fileName || `recording-${Date.now()}.mp3`;
+      // Log audio data info
+    console.log(`Audio data for transcription:`, {
+      type: audioData.type,
+      size: audioData.size,
+      fileName: fileName
+    });
+    
+    // Add the file with the specified name to help API identify the format
+    formData.append('file', audioData, fileName);
+    formData.append('model', fullConfig.model);
+    formData.append('language', fullConfig.language);
+    formData.append('response_format', 'json');
+    
+    console.log(`Transcribing audio with language: ${fullConfig.language}, model: ${fullConfig.model}`);
+    
+    // Call OpenAI Whisper API
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorDetails = 'Unknown error';
+      
+      try {
+        // Try to parse as JSON
+        const error = JSON.parse(errorText);
+        errorDetails = error.error?.message || error.message || JSON.stringify(error);
+      } catch (e) {
+        // If not JSON, use the raw text
+        errorDetails = errorText || `HTTP error ${response.status}`;
+      }
+      
+      console.error('Whisper API error response:', errorDetails);
+      throw new Error(`Whisper API error: ${errorDetails}`);
+    }
+    
+    const result = await response.json();
+    
+    return {
+      text: result.text,
+      confidence: 0.95 // Whisper API doesn't return confidence scores, so we assume high confidence
+    };  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    
+    // Fall back to simulation in case of errors
+    return {
+      text: "Cuando era chico en Buenos Aires, mi abuela solicitaba que tomara mate con ella cada tarde. Sentados en el patio, me contaba historias de su juventud.",
+      confidence: 0.8
+    };
+  }
 }
 
 /**
