@@ -111,14 +111,8 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
       setGeneratedStory(formattedStory);
     }, 3000);
   };
-
   return (
     <div className={styles.container} style={{
-      minHeight: '100vh',
-      padding: '2rem',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
       background: 'rgba(34, 40, 49, 0.98)',
       borderRadius: 20,
       boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
@@ -137,14 +131,8 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
       </header>
 
       <main style={{ width: '100%' }}>
-        <section style={{ 
-          marginBottom: '2rem',
-          background: '#232526',
-          padding: '1.5rem',
-          borderRadius: '10px',
-          textAlign: 'center'
-        }}>
-          <h2 style={{ color: '#ffb347', marginBottom: '1rem' }}>Grabar Historia</h2>
+        <section className={styles.section} style={{ textAlign: 'center' }}>
+          <h2 className={styles.sectionTitle}>Grabar Historia</h2>
           <p style={{ marginBottom: '1.5rem' }}>
             {recording 
               ? 'Grabando... Hable claramente al micrófono.' 
@@ -153,61 +141,31 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
           
           <button 
             onClick={recording ? stopRecording : startRecording}
-            style={{
-              backgroundColor: recording ? '#e74c3c' : '#2ecc71',
-              color: 'white',
-              padding: '0.8rem 2rem',
-              fontSize: '1.2rem',
-              border: 'none',
-              borderRadius: '50px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto',
-              transition: 'all 0.2s ease'
-            }}
+            className={`${styles.button} ${recording ? styles.recording : ''}`}
           >
             {recording ? '⏹️ Detener Grabación' : '🎙️ Iniciar Grabación'}
           </button>
           
           {audioURL && (
             <div style={{ marginTop: '1.5rem' }}>
-              <h3 style={{ color: '#ffb347', marginBottom: '0.5rem' }}>Grabación</h3>
+              <h3 className={styles.sectionTitle}>Grabación</h3>
               <audio src={audioURL} controls style={{ width: '100%', marginBottom: '1rem' }} />
             </div>
           )}
-        </section>
-
-        {transcribedText && (
-          <section style={{ 
-            marginBottom: '2rem',
-            background: '#232526',
-            padding: '1.5rem',
-            borderRadius: '10px'
-          }}>
-            <h2 style={{ color: '#ffb347', marginBottom: '1rem' }}>Transcripción</h2>
-            <p style={{ lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+        </section>        {transcribedText && (
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Transcripción</h2>
+            <p className={styles.transcription}>
               {transcribedText}
             </p>
           </section>
         )}
 
         {generatedStory && (
-          <section style={{ 
-            marginBottom: '2rem',
-            background: '#232526',
-            padding: '1.5rem',
-            borderRadius: '10px'
-          }}>
-            <h2 style={{ color: '#ffb347', marginBottom: '1rem' }}>Historia Generada</h2>
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Historia Generada</h2>
             <div 
-              style={{ 
-                lineHeight: '1.8', 
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'Georgia, serif',
-                fontSize: '1.05rem'
-              }}
+              className={styles.storyContent}
               dangerouslySetInnerHTML={{ __html: generatedStory.replace(/\n/g, '<br>') }} 
             />
           </section>
@@ -217,16 +175,7 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
       <footer style={{ marginTop: '2rem', textAlign: 'center' }}>
         <Link 
           href="/"
-          style={{
-            display: 'inline-block',
-            padding: '0.8rem 1.5rem',
-            backgroundColor: '#333',
-            color: '#fff',
-            borderRadius: '5px',
-            textDecoration: 'none',
-            fontSize: '1rem',
-            transition: 'background-color 0.2s',
-          }}
+          className={styles.backButton}
         >
           ← Regresar a Mission Control
         </Link>
