@@ -1,15 +1,16 @@
 import { Agent } from './Agent';
 import { CommunicationsAgent } from './CommunicationsAgent';
 import { ResearcherAgent } from './ResearcherAgent';
+import { MemoriasAI } from './MemoriasAI';
 
 // Registry for all available agents
 export class AgentRegistry {
   private agents: Map<string, Agent> = new Map();
-
   constructor() {
     // Register core agents here
     this.register(new CommunicationsAgent());
     this.register(new ResearcherAgent());
+    this.register(new MemoriasAI());
     // I'll add more agents as I implement them
   }
 
