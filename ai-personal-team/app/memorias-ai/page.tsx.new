@@ -28,6 +28,7 @@ export default function MemoriasAIPage() {
       document.body.style.fontFamily = "";
     };
   }, []);
+
   const startRecording = async () => {
     // Reset states
     setAudioChunks([]);
@@ -44,7 +45,8 @@ export default function MemoriasAIPage() {
       
       // Specify audio MIME type options that are compatible with Whisper API
       let options = {};
-        // Try different MIME types that are supported by both the browser and Whisper API
+      
+      // Try different MIME types that are supported by both the browser and Whisper API
       // Prioritize MP3 as it's more compressed than WAV
       const mimeTypes = [
         'audio/mp3',
@@ -125,7 +127,9 @@ export default function MemoriasAIPage() {
           console.error("Error in transcription process:", error);
           setTranscribedText("Error al transcribir. Por favor, intente nuevamente.");
         }
-      };      // Start recording with smaller time slices for more frequent data capture
+      };
+      
+      // Start recording with smaller time slices for more frequent data capture
       console.log("Starting MediaRecorder...");
       try {
         // Use a shorter time slice (200ms) to capture more chunks and ensure we get data
@@ -156,6 +160,7 @@ export default function MemoriasAIPage() {
       alert("No se pudo acceder al micrófono. Por favor, asegúrese de que está conectado y que ha dado permiso para usarlo.");
     }
   };
+
   const stopRecording = () => {
     if (mediaRecorder) {
       console.log(`Stopping recording. Current state: ${mediaRecorder.state}`);
@@ -189,7 +194,9 @@ export default function MemoriasAIPage() {
     } else {
       console.error('No MediaRecorder instance found');
     }
-  };  const processTranscription = async (audioBlob: Blob) => {
+  };
+
+  const processTranscription = async (audioBlob: Blob) => {
     try {
       console.log("Processing audio blob:", audioBlob.size, "bytes", "type:", audioBlob.type);
       
@@ -203,9 +210,6 @@ export default function MemoriasAIPage() {
       // First try direct transcription using the whisper_transcribe function
       try {
         console.log("Attempting direct transcription with Whisper API...");
-        
-        // Import the transcription function
-        const { transcribeAudio } = await import('../../agents/whisper_transcribe');
         
         // Create a filename that indicates the format
         const fileName = `recording-${Date.now()}.mp3`;
@@ -221,14 +225,15 @@ export default function MemoriasAIPage() {
         setTranscribedText(result.text);
         
         // Generate a story based on the transcription
-        generateRealStory(result.text);
+        simulateStoryGeneration(result.text);
         
         return; // Exit early since direct transcription worked
       } catch (directError) {
         console.warn("Direct transcription failed, falling back to server API:", directError);
       }
       
-      // Fallback to server API approach      try {
+      // Fallback to server API approach
+      try {
         // Create a File object for more reliable server handling
         const timestamp = Date.now();
         const audioFile = new File(
@@ -276,27 +281,13 @@ export default function MemoriasAIPage() {
         console.error("Server API transcription error:", serverError);
         throw serverError; // Re-throw to be caught by the outer catch
       }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server returned error:", errorData);
-        throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
-      }
-      
-      const transcriptionResult = await response.json();
-      const transcription = transcriptionResult.text;
-      
-      console.log("Received transcription:", transcription);
-      setTranscribedText(transcription);
-      
-      // After successful transcription, generate a story
-      generateRealStory(transcription);
     } catch (error) {
       console.error("Error transcribing audio:", error);
       setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
     }
   };
-    const generateRealStory = async (text: string) => {
+
+  const generateRealStory = async (text: string) => {
     try {
       setGeneratedStory("Generando historia...");
       
@@ -346,6 +337,7 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
       setGeneratedStory(formattedStory);
     }, 3000);
   };
+  
   return (
     <div className={styles.container} style={{
       background: 'rgba(34, 40, 49, 0.98)',
@@ -387,7 +379,9 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
               <audio src={audioURL} controls style={{ width: '100%', marginBottom: '1rem' }} />
             </div>
           )}
-        </section>        {transcribedText && (
+        </section>
+        
+        {transcribedText && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>Transcripción</h2>
             <p className={styles.transcription}>
