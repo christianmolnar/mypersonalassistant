@@ -21,8 +21,13 @@ The framework folder contains all the shared elements that define how the reposi
 
 ## Shared Structure 
 
-Each area in the `shared/` folder follows this structure:
+The `shared/` folder contains these key elements:
 
+- **docs/**: Shared documentation that applies across all areas
+  - Contains `AI_Interaction_Guidelines.md` with principles for AI assistant usage
+  - Contains other general documentation files
+
+Each area in the `shared/` folder follows this structure:
 - A `copilot_area_docs/` folder with area-specific context
   - Contains a `main.md` file that summarizes all files in this directory
 - Empty project folder structure templates (specific implementations go in personal)

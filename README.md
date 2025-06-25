@@ -15,8 +15,9 @@ This repository is organized into these primary sections:
 To start using this workspace:
 
 1. Review the documentation in `framework/docs/` to understand the structure
-2. Look at the templates in `framework/templates/` for creating new shared and projects
-3. Keep your personal implementations in the `personal/` folder
+2. Read the `shared/docs/AI_Interaction_Guidelines.md` for AI assistant usage guidelines
+3. Look at the templates in `framework/templates/` for creating new shared and projects
+4. Keep your personal implementations in the `personal/` folder
 
 ## Documentation
 
