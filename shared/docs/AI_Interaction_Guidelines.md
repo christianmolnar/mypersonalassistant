@@ -10,7 +10,6 @@
 ### 2. NO Fabrication of Content
 - **NEVER create hypothetical or fabricated content** unless explicitly requested
 - This includes but is not limited to:
-  - Job positions or requisition IDs
   - Company documents or publications
   - Letters, emails, or communications
   - Product specifications
