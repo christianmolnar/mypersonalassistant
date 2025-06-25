@@ -149,12 +149,8 @@ personal
 *.tmp
 *.bak
 
-# Ignore Markdown files in specific folders
-personal/Projects_and_Materials/**/*.md
-
-# Ignore generated files
-personal/Projects_and_Materials/**/*.pdf
-personal/Projects_and_Materials/**/*.docx
+# Personal folder is now a separate private repository
+personal/
 
 # Windows special files
 NUL
