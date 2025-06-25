@@ -9,7 +9,7 @@ export class CommunicationsAgent implements Agent {
   name = 'Communications Agent';
   description = 'Handles communications, email, meetings, and business writing.';
   // Reference to the central tone and style guide for consistent communication across all agents
-  toneAndStyleGuidePath = path.join(__dirname, '..', 'ToneAndStyleGuide.md');
+  toneAndStyleGuidePath = path.join(__dirname, '..', '..', 'shared', 'docs', 'ToneAndStyleGuide.md');
   abilities = [
     'Draft Email',
     'Summarize Email/Chat',

@@ -21,7 +21,7 @@ The central Tone and Style Guide is organized in the following sections:
 
 To create your own personalized Tone and Style Guide:
 
-1. Copy the central guide structure from `ai-personal-team/ToneAndStyleGuide.md`
+1. Copy the central guide structure from `shared/docs/ToneAndStyleGuide.md`
 2. Replace the content with your own preferences, mannerisms, and examples
 3. Maintain the same organizational structure for consistency
 4. Place your personalized guide in your personal area
