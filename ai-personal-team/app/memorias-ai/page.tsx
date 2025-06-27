@@ -37,6 +37,7 @@ export default function MemoriasAIPage() {
       document.body.style.fontFamily = "";
     };
   }, []);
+
   const startRecording = async () => {
     // Reset states
     setAudioChunks([]);
@@ -45,6 +46,8 @@ export default function MemoriasAIPage() {
     setGeneratedStory(null);
     
     try {
+      addDebugInfo("Starting recording process...");
+      
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -53,7 +56,7 @@ export default function MemoriasAIPage() {
       
       // Specify audio MIME type options that are compatible with Whisper API
       let options = {};
-        // Try different MIME types that are supported by both the browser and Whisper API
+      // Try different MIME types that are supported by both the browser and Whisper API
       // Prioritize MP3 as it's more compressed than WAV
       const mimeTypes = [
         'audio/mp3',
@@ -69,14 +72,14 @@ export default function MemoriasAIPage() {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           options = { mimeType };
           selectedMimeType = mimeType;
-          console.log(`Using MIME type: ${mimeType}`);
+          addDebugInfo(`Using MIME type: ${mimeType}`);
           break;
         }
       }
       
       // Fallback if none of our preferred types are supported
       if (!selectedMimeType) {
-        console.log("No preferred MIME types supported, using browser default");
+        addDebugInfo("No preferred MIME types supported, using browser default");
       }
       
       const recorder = new MediaRecorder(stream, options);
@@ -84,7 +87,7 @@ export default function MemoriasAIPage() {
       // Set up event handlers to collect audio data
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-          console.log(`Received audio chunk: ${event.data.size} bytes`);
+          addDebugInfo(`Received audio chunk: ${event.data.size} bytes`);
           localAudioChunks.push(event.data);
           // Also update React state for UI updates
           setAudioChunks(chunks => [...chunks, event.data]);
@@ -100,7 +103,7 @@ export default function MemoriasAIPage() {
           mimeType = mimeType.split(';')[0];
         }
         
-        console.log(`Recording stopped, collected ${localAudioChunks.length} chunks`);
+        addDebugInfo(`Recording stopped, collected ${localAudioChunks.length} chunks`);
         
         // Make sure we have data - use local array instead of state
         if (localAudioChunks.length === 0) {
@@ -109,50 +112,37 @@ export default function MemoriasAIPage() {
           return;
         }
         
-        console.log("Audio chunks captured:", localAudioChunks.length, 
-          "First chunk size:", localAudioChunks[0]?.size || 0);
-        
         // Create the audio blob with the actual type from the recorder
         // Use localAudioChunks instead of state variable
         const audioBlob = new Blob(localAudioChunks, { type: mimeType });
-        console.log(`Creating audio blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
+        addDebugInfo(`Creating audio blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
         
         // Create URL for playback
         const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
         
         try {
-          // Log the audio details before sending
-          console.log("Audio details:", {
-            type: audioBlob.type,
-            size: audioBlob.size,
-            chunks: localAudioChunks.length
-          });
-          
           await processTranscription(audioBlob);
         } catch (error) {
           console.error("Error in transcription process:", error);
           setTranscribedText("Error al transcribir. Por favor, intente nuevamente.");
         }
-      };      // Start recording with smaller time slices for more frequent data capture
-      console.log("Starting MediaRecorder...");
+      };
+      
+      // Start recording with smaller time slices for more frequent data capture
+      addDebugInfo("Starting MediaRecorder...");
       try {
         // Use a shorter time slice (200ms) to capture more chunks and ensure we get data
         recorder.start(200);
-        console.log("MediaRecorder successfully started");
+        addDebugInfo("MediaRecorder successfully started");
         
         setMediaRecorder(recorder);
         setRecording(true);
         
-        console.log("Recording started with MediaRecorder:", {
-          state: recorder.state,
-          mimeType: recorder.mimeType
-        });
-        
         // Force an additional data capture after a brief delay
         setTimeout(() => {
           if (recorder.state === 'recording') {
-            console.log('Requesting additional data capture');
+            addDebugInfo('Requesting additional data capture');
             recorder.requestData();
           }
         }, 500);
@@ -198,7 +188,9 @@ export default function MemoriasAIPage() {
     } else {
       console.error('No MediaRecorder instance found');
     }
-  };  const processTranscription = async (audioBlob: Blob) => {
+  };
+
+  const processTranscription = async (audioBlob: Blob) => {
     try {
       addDebugInfo(`Processing audio blob: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
       
@@ -247,25 +239,6 @@ export default function MemoriasAIPage() {
         return; // Exit early since direct transcription worked
       } catch (directError) {
         addDebugInfo(`Direct transcription failed: ${directError}`);
-        console.warn("Direct transcription failed, falling back to server API:", directError);
-      }
-        const fileName = `recording-${Date.now()}.mp3`;
-        
-        // Call the transcription function directly
-        const result = await transcribeAudio(audioBlob, {
-          language: 'es',
-          model: 'whisper-1',
-          fileName: fileName
-        });
-        
-        console.log("Direct transcription successful:", result);
-        setTranscribedText(result.text);
-        
-        // Generate a story based on the transcription
-        generateRealStory(result.text);
-        
-        return; // Exit early since direct transcription worked
-      } catch (directError) {
         console.warn("Direct transcription failed, falling back to server API:", directError);
       }
       
@@ -319,7 +292,6 @@ export default function MemoriasAIPage() {
         throw serverError; // Re-throw to be caught by the outer catch
       }
     } catch (error) {
-      addDebugInfo(`Error transcribing audio: ${error}`);
       console.error("Error transcribing audio:", error);
       setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
     }
@@ -327,7 +299,6 @@ export default function MemoriasAIPage() {
 
   const generateRealStory = async (text: string) => {
     try {
-      addDebugInfo("Starting story generation...");
       setGeneratedStory("Generando historia...");
       
       // Use the actual story generation service
@@ -445,6 +416,27 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
           ← Regresar a Mission Control
         </Link>
       </footer>
+
+      {/* Debug Information */}
+      {debugInfo.length > 0 && (
+        <section className={styles.section} style={{ marginTop: '2rem' }}>
+          <h3 className={styles.sectionTitle}>Debug Info</h3>
+          <div style={{ 
+            background: 'rgba(0,0,0,0.3)', 
+            padding: '1rem', 
+            borderRadius: '8px',
+            fontSize: '0.8rem',
+            maxHeight: '200px',
+            overflowY: 'auto'
+          }}>
+            {debugInfo.map((info, index) => (
+              <div key={index} style={{ marginBottom: '4px' }}>
+                {info}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
