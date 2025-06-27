@@ -3,8 +3,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import type { CheerioAPI } from 'cheerio';
 import { AI_CONFIG } from './ai_config';
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser, Page } from 'puppeteer';
 
 export class ResearcherAgent implements Agent {
   id = 'researcher';
@@ -439,10 +440,10 @@ export class ResearcherAgent implements Agent {
       // Puppeteer extraction with improved error handling
       async function extractWithPuppeteerInternal(): Promise<{success: boolean, text?: string, error?: string, fallbackHtml?: string}> {
         let currStep = 'init';
-        let browser = null;
-        let page = null;
+        let browser: Browser | null = null;
+        let page: Page | null = null;
         try {
-          let executablePath = undefined;
+          let executablePath: string | undefined = undefined;
           if (process.platform === 'win32') {
             currStep = 'resolve executablePath';
             executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -695,7 +696,7 @@ export class ResearcherAgent implements Agent {
       async function extractWithCheerioInternal(html?: string): Promise<{success: boolean, text?: string, error?: string}> {
         try {
           console.log('[Cheerio] Starting extraction...');
-          let $ = null;
+          let $: CheerioAPI | null = null;
           
           if (html) {
             $ = cheerio.load(html);

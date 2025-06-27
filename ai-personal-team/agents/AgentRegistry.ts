@@ -2,6 +2,8 @@ import { Agent } from './Agent';
 import { CommunicationsAgent } from './CommunicationsAgent';
 import { ResearcherAgent } from './ResearcherAgent';
 import { MemoriasAI } from './MemoriasAI';
+import { ImageGeneratorAgent } from './ImageGeneratorAgent';
+import { VinylResearcherAgent } from './VinylResearcherAgent';
 
 // Registry for all available agents
 export class AgentRegistry {
@@ -11,6 +13,8 @@ export class AgentRegistry {
     this.register(new CommunicationsAgent());
     this.register(new ResearcherAgent());
     this.register(new MemoriasAI());
+    this.register(new ImageGeneratorAgent());
+    this.register(new VinylResearcherAgent());
     // I'll add more agents as I implement them
   }
 
