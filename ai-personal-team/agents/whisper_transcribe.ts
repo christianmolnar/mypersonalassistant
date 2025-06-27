@@ -90,8 +90,15 @@ export async function transcribeAudio(
         errorDetails = errorText || `HTTP error ${response.status}`;
       }
       
-      console.error('Whisper API error response:', errorDetails);
-      throw new Error(`Whisper API error: ${errorDetails}`);
+      console.error('Whisper API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorDetails: errorDetails,
+        audioType: audioData.type,
+        audioSize: audioData.size,
+        fileName: fileName
+      });
+      throw new Error(`Whisper API error (${response.status}): ${errorDetails}`);
     }
     
     const result = await response.json();
@@ -100,9 +107,16 @@ export async function transcribeAudio(
       text: result.text,
       confidence: 0.95 // Whisper API doesn't return confidence scores, so we assume high confidence
     };  } catch (error) {
-    console.error('Error transcribing audio:', error);
+    console.error('Error transcribing audio:', {
+      error: error instanceof Error ? error.message : error,
+      audioType: audioData.type,
+      audioSize: audioData.size,
+      fileName: fullConfig.fileName,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     
     // Fall back to simulation in case of errors
+    console.warn('Whisper API failed, returning fallback text');
     return {
       text: "Cuando era chico en Buenos Aires, mi abuela solicitaba que tomara mate con ella cada tarde. Sentados en el patio, me contaba historias de su juventud.",
       confidence: 0.8

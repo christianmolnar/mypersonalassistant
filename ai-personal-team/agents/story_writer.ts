@@ -100,16 +100,14 @@ export async function generateStoryFromTranscription(
  * @returns A suitable title for the story
  */
 function generateTitle(transcription: string, themes?: Partial<StoryMetadata>): string {
-  // This would normally use NLP or an LLM to generate a suitable title
-  // Here we'll simulate that with a simple implementation
+  // CRITICAL: This function must NEVER be creative or invent content.
+  // It can only extract the first few words as a simple title.
   
-  // Extract first few words for a simple title
-  const firstWords = transcription.split(/\s+/).slice(0, 7).join(' ');
+  // Extract first few words for a simple title (no creativity)
+  const firstWords = transcription.split(/\s+/).slice(0, 5).join(' ');
   
-  // Add ellipsis if we're cutting off a sentence
-  const title = firstWords + (transcription.length > firstWords.length ? '...' : '');
-  
-  return title.charAt(0).toUpperCase() + title.slice(1);
+  // Just capitalize the first letter, no creative additions
+  return firstWords.charAt(0).toUpperCase() + firstWords.slice(1);
 }
 
 /**
@@ -148,27 +146,20 @@ function enhanceTranscription(
   enhanceStructure: boolean,
   style: 'formal' | 'personal' | 'literary'
 ): string {
-  // In production, this would call an LLM to transform the text
-  // For now, we'll return a simple enhancement
+  // CRITICAL: This function must NEVER add creative content or invent anything.
+  // It can only do basic formatting: punctuation, paragraph breaks, capitalization.
+  // NO introductions, NO creative text, NO expansions.
   
-  // Add paragraph breaks (simple example)
+  // Only do basic formatting: add paragraph breaks at sentence endings
   let enhanced = transcription
+    .trim()
     .replace(/\.\s+/g, '.\n\n')
     .split('\n\n')
     .filter(para => para.trim().length > 0)
     .join('\n\n');
   
-  // Add a simple introduction based on style
-  if (enhanceStructure) {
-    if (style === 'personal') {
-      enhanced = `En mis propias palabras, quiero compartir esta historia personal:\n\n${enhanced}`;
-    } else if (style === 'formal') {
-      enhanced = `El siguiente relato documenta una experiencia histórica significativa:\n\n${enhanced}`;
-    } else if (style === 'literary') {
-      enhanced = `Entre los recuerdos que tejen nuestra existencia, esta historia se destaca con luz propia:\n\n${enhanced}`;
-    }
-  }
-  
+  // NEVER add any introductory text or creative content
+  // Just return the original text with minimal formatting
   return enhanced;
 }
 

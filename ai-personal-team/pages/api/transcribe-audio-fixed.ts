@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import multiparty from 'multiparty';
+import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
 import { transcribeAudio } from '../../agents/whisper_transcribe';
@@ -29,26 +29,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    // Use multiparty to parse the form
-    const form = new multiparty.Form({
+    // Configure formidable with simpler options
+    const form = formidable({
       uploadDir: uploadsDir,
+      keepExtensions: true,
       maxFileSize: 50 * 1024 * 1024, // 50MB max
+      filename: () => `recording-${Date.now()}.mp3`,
     });
 
     // Parse the form data
-    const [fields, files] = await new Promise<[any, any]>((resolve, reject) => {
-      form.parse(req, (err: any, fields: any, files: any) => {
-        if (err) {
-          console.error("Form parsing error:", err);
-          reject(err);
-        } else {
-          console.log("Form parsed successfully:", { 
-            fieldKeys: Object.keys(fields),
-            fileKeys: Object.keys(files)
-          });
-          resolve([fields, files]);
-        }
-      });
+    const [fields, files] = await form.parse(req);
+    
+    console.log("Form parsed successfully:", { 
+      fieldKeys: Object.keys(fields),
+      fileKeys: Object.keys(files)
     });
     
     // Check if we got any files at all
@@ -71,21 +65,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     console.log("API route: Audio file received and saved", {
-      path: audioFile.path,
+      path: audioFile.filepath,
       size: audioFile.size,
-      type: audioFile.headers['content-type'],
+      type: audioFile.mimetype,
       originalFilename: audioFile.originalFilename
     });
 
-    // Get the file path and other properties
-    const filePath = audioFile.path;
-    const fileSize = audioFile.size;
-    const mimeType = audioFile.headers['content-type'] || 'audio/mp3';
-    const originalName = audioFile.originalFilename;
-
     // Verify the file exists and has content
     try {
-      const stats = fs.statSync(filePath);
+      const stats = fs.statSync(audioFile.filepath);
       console.log("File stats:", {
         size: stats.size,
         isFile: stats.isFile(),
@@ -108,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Read the file into a buffer
     let fileBuffer;
     try {
-      fileBuffer = fs.readFileSync(filePath);
+      fileBuffer = fs.readFileSync(audioFile.filepath);
       console.log(`Successfully read file buffer, size: ${fileBuffer.length} bytes`);
     } catch (readError) {
       console.error("Error reading file:", readError);
@@ -116,11 +104,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     // Create a blob with appropriate MIME type
+    const mimeType = audioFile.mimetype || 'audio/mp3';
     const fileBlob = new Blob([fileBuffer], { type: mimeType });
     console.log(`Created blob with size: ${fileBlob.size} bytes and type: ${fileBlob.type}`);
     
     // Ensure the file has a proper name with .mp3 extension for the API
-    const fileName = originalName || `recording-${Date.now()}.mp3`;
+    const fileName = audioFile.originalFilename || path.basename(audioFile.filepath);
     
     console.log("API route: Sending to Whisper API with filename:", fileName);
 
@@ -143,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Clean up: Delete the temporary file
       try {
-        fs.unlinkSync(filePath);
+        fs.unlinkSync(audioFile.filepath);
         console.log("Temporary file cleaned up");
       } catch (unlinkErr) {
         console.warn("Could not delete temporary file:", unlinkErr);

@@ -1,28 +1,28 @@
 /**
  * Text-to-Speech Module for Memorias-AI
  * 
- * This module handles converting text to speech with Argentine Spanish accent.
+ * This module handles converting text to speech with Argentine Spanish accent using OpenAI's TTS API.
  */
 
 // Configuration for the Text-to-Speech service
 interface TTSConfig {
   apiKey?: string;      // Optional API key for TTS service
-  voice: string;        // Voice ID to use (specific voices with Argentine accent)
-  speed: number;        // Speech rate (1.0 is normal speed)
-  pitch: number;        // Voice pitch adjustment
-  audioFormat: string;  // Output format ('mp3', 'wav', etc.)
+  voice: string;        // Voice ID to use
+  model: string;        // TTS model to use
+  speed: number;        // Speech rate (0.25 to 4.0)
+  responseFormat: string; // Output format ('mp3', 'opus', 'aac', 'flac')
 }
 
-// Default configuration for Argentine Spanish TTS
+// Default configuration for Spanish TTS with warm, friendly voice
 const defaultConfig: TTSConfig = {
-  voice: 'es-AR-Elena',  // Example voice ID with Argentine accent
-  speed: 1.0,
-  pitch: 1.0,
-  audioFormat: 'mp3'
+  voice: 'nova',         // Nova is a feminine voice good for Spanish (Carmen)
+  model: 'tts-1',        // Standard quality model
+  speed: 0.9,            // Slightly slower for clear pronunciation
+  responseFormat: 'mp3'
 };
 
 /**
- * Convert text to speech using the configured TTS service
+ * Convert text to speech using OpenAI's TTS API
  * 
  * @param text - The text to convert to speech
  * @param config - Optional configuration overrides
@@ -35,54 +35,94 @@ export async function textToSpeech(
   // Merge provided config with defaults
   const fullConfig: TTSConfig = { ...defaultConfig, ...config };
   
-  // In a real implementation, this would call a TTS API (Google, ElevenLabs, etc.)
-  // For now, we'll simulate a response
-  
-  console.log(`Converting text to speech with voice: ${fullConfig.voice}`);
-  console.log(`Text length: ${text.length} characters`);
-  
-  // Simulate API delay proportional to text length
-  await new Promise(resolve => setTimeout(resolve, Math.min(500 + text.length * 5, 3000)));
-  
-  // In a real implementation, this would return the actual audio blob
-  // For now, return an empty blob as a placeholder
-  return new Blob([], { type: `audio/${fullConfig.audioFormat}` });
+  try {
+    // Check for API key
+    const apiKey = fullConfig.apiKey || process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      console.warn("No OpenAI API key provided for TTS. Cannot generate speech.");
+      throw new Error("No API key available for text-to-speech");
+    }
+
+    console.log(`Converting text to speech:`, {
+      textLength: text.length,
+      voice: fullConfig.voice,
+      model: fullConfig.model,
+      speed: fullConfig.speed
+    });
+
+    // Call OpenAI TTS API
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: fullConfig.model,
+        input: text,
+        voice: fullConfig.voice,
+        speed: fullConfig.speed,
+        response_format: fullConfig.responseFormat
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI TTS API error:', response.status, errorText);
+      throw new Error(`TTS API error: ${response.status} ${errorText}`);
+    }
+
+    // Return the audio blob
+    const audioBlob = await response.blob();
+    console.log(`TTS successful: Generated ${audioBlob.size} bytes of audio`);
+    
+    return audioBlob;
+
+  } catch (error) {
+    console.error('Error in text-to-speech conversion:', error);
+    throw error;
+  }
 }
 
 /**
- * Get available Argentine Spanish voices
+ * Get available voices with Argentine names
  * 
  * @returns Array of available voice options
  */
-export function getArgentineVoices(): Promise<Array<{
+export function getArgentineVoices(): Array<{
   id: string;
   name: string;
   gender: 'male' | 'female';
   description: string;
-}>> {
-  // This would normally fetch available voices from the API
-  // Here we're returning a static list of example voices
-  
-  return Promise.resolve([
+}> {
+  // OpenAI TTS API voices mapped to Argentine names - properly gender-matched
+  return [
     {
-      id: 'es-AR-Elena',
-      name: 'Elena',
+      id: 'alloy',
+      name: 'Carmen',
       gender: 'female',
-      description: 'Female Argentine Spanish voice with porteño accent'
+      description: 'Voz femenina cálida y amigable'
     },
     {
-      id: 'es-AR-Tomás',
-      name: 'Tomás',
+      id: 'onyx',
+      name: 'Diego',
       gender: 'male',
-      description: 'Male Argentine Spanish voice with neutral accent'
+      description: 'Voz masculina profunda y confiable'
     },
     {
-      id: 'es-AR-Gabriela',
-      name: 'Gabriela',
+      id: 'nova',
+      name: 'Valentina',
       gender: 'female',
-      description: 'Female Argentine Spanish voice with emphasis on clear pronunciation'
+      description: 'Voz femenina joven y vibrante'
+    },
+    {
+      id: 'fable',
+      name: 'Mateo',
+      gender: 'male',
+      description: 'Voz masculina suave y expresiva'
     }
-  ]);
+  ];
 }
 
 /**
