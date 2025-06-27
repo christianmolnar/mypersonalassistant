@@ -13,6 +13,15 @@ export default function MemoriasAIPage() {
   const [generatedStory, setGeneratedStory] = useState<string | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  // Helper function to add debug information
+  const addDebugInfo = (message: string) => {
+    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+    const debugMessage = `[${timestamp}] ${message}`;
+    console.log(debugMessage);
+    setDebugInfo(prev => [...prev.slice(-10), debugMessage]); // Keep last 10 messages
+  };
 
   // Set body styles when component mounts
   useEffect(() => {
@@ -191,7 +200,7 @@ export default function MemoriasAIPage() {
     }
   };  const processTranscription = async (audioBlob: Blob) => {
     try {
-      console.log("Processing audio blob:", audioBlob.size, "bytes", "type:", audioBlob.type);
+      addDebugInfo(`Processing audio blob: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
       
       // Check if we have valid audio data
       if (!audioBlob || audioBlob.size === 0) {
@@ -200,14 +209,46 @@ export default function MemoriasAIPage() {
       
       setTranscribedText("Transcribiendo audio...");
       
+      // First check if we can reach our test API endpoint
+      try {
+        addDebugInfo("Testing API endpoint availability...");
+        const testResponse = await fetch('/api/test-env');
+        const testData = await testResponse.json();
+        addDebugInfo(`API test result: ${JSON.stringify(testData)}`);
+      } catch (testError) {
+        addDebugInfo(`API test failed: ${testError}`);
+      }
+      
       // First try direct transcription using the whisper_transcribe function
       try {
-        console.log("Attempting direct transcription with Whisper API...");
+        addDebugInfo("Attempting direct transcription with Whisper API...");
         
         // Import the transcription function
         const { transcribeAudio } = await import('../../agents/whisper_transcribe');
         
         // Create a filename that indicates the format
+        const fileName = `recording-${Date.now()}.mp3`;
+        
+        addDebugInfo(`Calling transcribeAudio with fileName: ${fileName}`);
+        
+        // Call the transcription function directly
+        const result = await transcribeAudio(audioBlob, {
+          language: 'es',
+          model: 'whisper-1',
+          fileName: fileName
+        });
+        
+        addDebugInfo(`Direct transcription successful: ${result.text.substring(0, 50)}...`);
+        setTranscribedText(result.text);
+        
+        // Generate a story based on the transcription
+        generateRealStory(result.text);
+        
+        return; // Exit early since direct transcription worked
+      } catch (directError) {
+        addDebugInfo(`Direct transcription failed: ${directError}`);
+        console.warn("Direct transcription failed, falling back to server API:", directError);
+      }
         const fileName = `recording-${Date.now()}.mp3`;
         
         // Call the transcription function directly
@@ -278,6 +319,7 @@ export default function MemoriasAIPage() {
         throw serverError; // Re-throw to be caught by the outer catch
       }
     } catch (error) {
+      addDebugInfo(`Error transcribing audio: ${error}`);
       console.error("Error transcribing audio:", error);
       setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
     }
@@ -285,6 +327,7 @@ export default function MemoriasAIPage() {
 
   const generateRealStory = async (text: string) => {
     try {
+      addDebugInfo("Starting story generation...");
       setGeneratedStory("Generando historia...");
       
       // Use the actual story generation service
