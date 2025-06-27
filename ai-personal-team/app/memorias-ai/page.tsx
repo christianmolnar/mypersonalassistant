@@ -14,6 +14,7 @@ export default function MemoriasAIPage() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
 
   // Helper function to add debug information
   const addDebugInfo = (message: string) => {
@@ -53,17 +54,18 @@ export default function MemoriasAIPage() {
       
       // Create a local array to store audio chunks without relying on React state
       let localAudioChunks: Blob[] = [];
-      
-      // Specify audio MIME type options that are compatible with Whisper API
+        // Specify audio MIME type options that are compatible with Whisper API
       let options = {};
       // Try different MIME types that are supported by both the browser and Whisper API
-      // Prioritize MP3 as it's more compressed than WAV
+      // Prioritize formats that work best with Whisper
       const mimeTypes = [
-        'audio/mp3',
-        'audio/mpeg', 
-        'audio/ogg',
-        'audio/wav',  // WAV is less compressed but widely supported
-        'audio/webm'  // Often supported but with codec issues
+        'audio/mp4',     // Often works well with Whisper
+        'audio/webm;codecs=opus',  // Good compression and quality
+        'audio/wav',     // Uncompressed, widely supported
+        'audio/ogg;codecs=opus',   // Good compression
+        'audio/mp3',     // Common but might have browser support issues
+        'audio/webm',    // Fallback webm
+        'audio/ogg'      // Fallback ogg
       ];
       
       // Find the first supported MIME type
@@ -134,8 +136,14 @@ export default function MemoriasAIPage() {
         console.log("AUDIO BLOB CREATED:", {
           size: audioBlob.size,
           type: audioBlob.type,
-          mimeType: mimeType
+          mimeType: mimeType,
+          recorderMimeType: recorder.mimeType
         });
+        
+        // Check for minimum audio size
+        if (audioBlob.size < 1000) {
+          addDebugInfo(`WARNING: Audio blob very small (${audioBlob.size} bytes), may not contain meaningful audio`);
+        }
         
         // Create URL for playback
         const url = URL.createObjectURL(audioBlob);
@@ -154,20 +162,26 @@ export default function MemoriasAIPage() {
       // Start recording with smaller time slices for more frequent data capture
       addDebugInfo("Starting MediaRecorder...");
       try {
-        // Use a shorter time slice (200ms) to capture more chunks and ensure we get data
-        recorder.start(200);
+        // Use a shorter time slice (100ms) to capture more chunks and ensure we get data
+        recorder.start(100);
         addDebugInfo("MediaRecorder successfully started");
         
         setMediaRecorder(recorder);
         setRecording(true);
+        setRecordingStartTime(Date.now());
         
-        // Force an additional data capture after a brief delay
-        setTimeout(() => {
+        // Force additional data captures at regular intervals
+        const requestDataInterval = setInterval(() => {
           if (recorder.state === 'recording') {
-            addDebugInfo('Requesting additional data capture');
+            addDebugInfo('Requesting periodic data capture');
             recorder.requestData();
+          } else {
+            clearInterval(requestDataInterval);
           }
-        }, 500);
+        }, 1000); // Request data every second
+        
+        // Store the interval ID so we can clear it later
+        (recorder as any).dataInterval = requestDataInterval;
       } catch (recorderError) {
         console.error("Error starting MediaRecorder:", recorderError);
         alert("Error al iniciar la grabación. Por favor, intente nuevamente.");
@@ -178,7 +192,15 @@ export default function MemoriasAIPage() {
     }
   };
   const stopRecording = () => {
-    if (mediaRecorder) {
+    if (mediaRecorder && recordingStartTime) {
+      const recordingDuration = Date.now() - recordingStartTime;
+      addDebugInfo(`Recording duration: ${recordingDuration}ms`);
+      
+      // Check for minimum recording duration (at least 1 second)
+      if (recordingDuration < 1000) {
+        addDebugInfo("WARNING: Recording too short, may not contain meaningful audio");
+      }
+      
       console.log(`Stopping recording. Current state: ${mediaRecorder.state}`);
       
       try {
@@ -198,7 +220,13 @@ export default function MemoriasAIPage() {
               console.log('Audio track stopped');
             });
             
+            // Clear the data request interval if it exists
+            if ((mediaRecorder as any).dataInterval) {
+              clearInterval((mediaRecorder as any).dataInterval);
+            }
+            
             setRecording(false);
+            setRecordingStartTime(null);
           }, 200);
         } else {
           console.log('MediaRecorder not in recording state, cannot stop');
@@ -248,14 +276,26 @@ export default function MemoriasAIPage() {
         // Import the transcription function
         const { transcribeAudio } = await import('../../agents/whisper_transcribe');
         
-        // Create a filename that indicates the format
-        const fileName = `recording-${Date.now()}.mp3`;
+        // Create a filename that indicates the actual format
+        let fileExtension = 'mp3'; // default
+        if (audioBlob.type.includes('webm')) {
+          fileExtension = 'webm';
+        } else if (audioBlob.type.includes('ogg')) {
+          fileExtension = 'ogg';
+        } else if (audioBlob.type.includes('wav')) {
+          fileExtension = 'wav';
+        } else if (audioBlob.type.includes('mp4')) {
+          fileExtension = 'mp4';
+        }
         
-        addDebugInfo(`Calling transcribeAudio with fileName: ${fileName}`);
+        const fileName = `recording-${Date.now()}.${fileExtension}`;
+        
+        addDebugInfo(`Calling transcribeAudio with fileName: ${fileName}, type: ${audioBlob.type}`);
         console.log("DIRECT TRANSCRIPTION - Calling transcribeAudio with:", {
           fileName,
           audioSize: audioBlob.size,
-          audioType: audioBlob.type
+          audioType: audioBlob.type,
+          detectedExtension: fileExtension
         });
         
         // Call the transcription function directly
@@ -286,16 +326,33 @@ export default function MemoriasAIPage() {
         
         // Create a File object for more reliable server handling
         const timestamp = Date.now();
+        
+        // Determine the proper file extension based on the actual audio type
+        let fileExtension = 'mp3'; // default
+        let actualMimeType = audioBlob.type;
+        
+        if (actualMimeType.includes('webm')) {
+          fileExtension = 'webm';
+        } else if (actualMimeType.includes('ogg')) {
+          fileExtension = 'ogg';
+        } else if (actualMimeType.includes('wav')) {
+          fileExtension = 'wav';
+        } else if (actualMimeType.includes('mp4')) {
+          fileExtension = 'mp4';
+        }
+        
         const audioFile = new File(
           [audioBlob], 
-          `recording-${timestamp}.mp3`, 
-          { type: 'audio/mp3', lastModified: timestamp }
+          `recording-${timestamp}.${fileExtension}`, 
+          { type: actualMimeType, lastModified: timestamp }
         );
         
         console.log("SERVER API - Created audio file for server API:", {
           name: audioFile.name,
           size: audioFile.size,
-          type: audioFile.type
+          type: audioFile.type,
+          originalBlobType: audioBlob.type,
+          detectedExtension: fileExtension
         });
         
         // Set up form data with the File object
@@ -422,8 +479,8 @@ Estos momentos, aparentemente simples pero profundamente significativos, forjaro
           <h2 className={styles.sectionTitle}>Grabar Historia</h2>
           <p style={{ marginBottom: '1.5rem' }}>
             {recording 
-              ? 'Grabando... Hable claramente al micrófono.' 
-              : 'Presione el botón para comenzar a grabar su historia.'}
+              ? 'Grabando... Hable claramente al micrófono por al menos 3-5 segundos.' 
+              : 'Presione el botón para comenzar a grabar su historia. Asegúrese de hablar por al menos 3-5 segundos.'}
           </p>
           
           <button 
