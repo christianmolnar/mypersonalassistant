@@ -335,42 +335,80 @@
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 12px;
-  border-radius: 6px;  
-  background: #2a343c;
+  height: 14px;
+  border-radius: 7px;  
+  background: linear-gradient(to right, 
+    #ff9f40 0%,    /* Creative side - orange */
+    #40c4ff 50%,   /* Balanced - blue */
+    #4caf50 100%   /* Precise side - green */
+  );
   outline: none;
   opacity: 0.9;
   transition: opacity .2s;
-  background-image: linear-gradient(to right, #2a343c, #ffb347);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
   margin: 0;
   padding: 0;
+  border: 1px solid rgba(255, 179, 71, 0.3);
 }
 
 .slider:hover {
   opacity: 1;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 8px rgba(255, 179, 71, 0.3);
 }
 
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #ffb347;
+  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
   cursor: pointer;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 3px solid #ffb347;
+  transition: all 0.2s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(255, 179, 71, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .slider::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #ffb347;
+  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
   cursor: pointer;
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 3px solid #ffb347;
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(255, 179, 71, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tickContainer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 5px;
+  padding: 0 12px; /* Account for slider thumb width */
+}
+
+.majorTick {
+  width: 2px;
+  height: 8px;
+  background-color: rgba(255, 179, 71, 0.4);
+  border-radius: 1px;
+}
+
+.sliderContainer {
+  position: relative;
+  width: 100%;
+  margin-top: 10px;
 }
 
 .strengthContainer {
@@ -382,39 +420,54 @@
   text-align: center;
 }
 
-.sliderContainer {
-  width: 60%;
-  margin: 15px auto 5px;
+.strengthDescription {
+  margin: 10px 0 15px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  min-height: 40px;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
-.tickContainer {
+.strengthHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.lowStrength {
+  color: #4caf50;
+}
+
+.mediumStrength {
+  color: #40c4ff;
+}
+
+.highStrength {
+  color: #ff9f40;
+}
+
+.sliderLabels {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  margin: 8px auto 0;
-  position: relative;
-  padding: 0 4px;
-  box-sizing: border-box;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #bbb;
 }
 
-.tick {
-  width: 1px;
-  background-color: rgba(255, 255, 255, 0.6);
-  flex-grow: 0;
-  flex-shrink: 0;
+.lowLabel {
+  color: #4caf50;
+  font-weight: 500;
 }
 
-.majorTick {
-  height: 10px;
-  width: 2px;
-}
-
-.minorTick {
-  height: 5px;
+.highLabel {
+  color: #ff9f40;
+  font-weight: 500;
 }
 
 .imageContainer {

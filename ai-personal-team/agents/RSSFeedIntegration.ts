@@ -813,7 +813,7 @@ function extractEntitiesFromText(text: string): { entities: string[], concepts: 
     // Look for consecutive capitalized words (potential multi-word entities)
     // Examples: "Joe Biden", "United States", "Democratic Party"
     const entityRegex = /(?:^|\.\s+|\n)([A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)+)/g;
-    const potentialEntities = [];
+    const potentialEntities: string[] = [];
     let match;
     
     // Create a new RegExp instance to avoid regex state issues
@@ -904,13 +904,13 @@ function extractEntitiesFromText(text: string): { entities: string[], concepts: 
     // Add extracted dates to concepts
     datePatterns.forEach(pattern => {
       const matches = text.match(pattern) || [];
-      matches.forEach(m => concepts.push(m.toLowerCase()));
+      matches.forEach((m: string) => concepts.push(m.toLowerCase()));
     });
     
     // Extract percentage statistics (important for fact claims)
     // Pattern matches things like "25% increase" or "3.5% of voters"
     const percentageMatches = text.match(/\b\d+(?:\.\d+)?%\s+(?:of|in|increase|decrease|growth|decline)\b/gi) || [];
-    percentageMatches.forEach(m => concepts.push(m.toLowerCase()));
+    percentageMatches.forEach((m: string) => concepts.push(m.toLowerCase()));
     
   } catch (error) {
     console.error('Error extracting entities:', error);

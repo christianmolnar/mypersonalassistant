@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!claim || !result || !feedback) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
-  let feedbacks = [];
+  let feedbacks: Array<{ claim: any; result: any; feedback: any; timestamp: any; }> = [];
   try {
     const data = await fs.readFile(FEEDBACK_FILE, 'utf-8');
     feedbacks = JSON.parse(data);

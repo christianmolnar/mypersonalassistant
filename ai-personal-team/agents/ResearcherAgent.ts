@@ -3,7 +3,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import type { CheerioAPI } from 'cheerio';
 import { AI_CONFIG } from './ai_config';
 import puppeteer, { Browser, Page } from 'puppeteer';
 
@@ -696,7 +695,7 @@ export class ResearcherAgent implements Agent {
       async function extractWithCheerioInternal(html?: string): Promise<{success: boolean, text?: string, error?: string}> {
         try {
           console.log('[Cheerio] Starting extraction...');
-          let $: CheerioAPI | null = null;
+          let $: any;
           
           if (html) {
             $ = cheerio.load(html);

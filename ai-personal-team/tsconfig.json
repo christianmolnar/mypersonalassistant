@@ -22,7 +22,8 @@
         "name": "next"
       }
     ],
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["jest", "node", "@testing-library/jest-dom"]
   },
   "include": [
     "next-env.d.ts",

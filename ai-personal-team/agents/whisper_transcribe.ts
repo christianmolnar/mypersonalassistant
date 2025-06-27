@@ -140,7 +140,7 @@ export async function batchTranscribe(
   audioFiles: (Blob | File)[],
   config?: Partial<WhisperConfig>
 ): Promise<Array<{ text: string; confidence: number }>> {
-  const results = [];
+  const results: Array<{ text: string; confidence: number }> = [];
   
   for (const audioFile of audioFiles) {
     const result = await transcribeAudio(audioFile, config);

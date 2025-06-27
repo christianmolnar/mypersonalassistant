@@ -228,7 +228,8 @@ export default function MemoriasAIPage() {
         console.warn("Direct transcription failed, falling back to server API:", directError);
       }
       
-      // Fallback to server API approach      try {
+      // Fallback to server API approach
+      try {
         // Create a File object for more reliable server handling
         const timestamp = Date.now();
         const audioFile = new File(
@@ -271,32 +272,18 @@ export default function MemoriasAIPage() {
         setTranscribedText(transcription);
         
         // After successful transcription, generate a story
-        simulateStoryGeneration(transcription);
+        generateRealStory(transcription);
       } catch (serverError) {
         console.error("Server API transcription error:", serverError);
         throw serverError; // Re-throw to be caught by the outer catch
       }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server returned error:", errorData);
-        throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
-      }
-      
-      const transcriptionResult = await response.json();
-      const transcription = transcriptionResult.text;
-      
-      console.log("Received transcription:", transcription);
-      setTranscribedText(transcription);
-      
-      // After successful transcription, generate a story
-      generateRealStory(transcription);
     } catch (error) {
       console.error("Error transcribing audio:", error);
       setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
     }
   };
-    const generateRealStory = async (text: string) => {
+
+  const generateRealStory = async (text: string) => {
     try {
       setGeneratedStory("Generando historia...");
       

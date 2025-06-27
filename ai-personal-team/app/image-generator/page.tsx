@@ -421,16 +421,42 @@ export default function ImageGeneratorPage() {
                 </div>                <div className={styles.strengthContainer}>
                   <label htmlFor="strength-slider">
                     Image Strength: {strength}
-                  </label>                  <div className={styles.sliderContainer}>
+                  </label>
+                  <div className={styles.strengthDescription}>
+                    <span className={styles.strengthHint}>
+                      {strength <= 3 && (
+                        <span className={styles.lowStrength}>
+                          � <strong>Precise & Literal</strong> - Closely follows prompt details
+                        </span>
+                      )}
+                      {strength >= 4 && strength <= 7 && (
+                        <span className={styles.mediumStrength}>
+                          ⚖️ <strong>Balanced</strong> - Good mix of prompt following and creativity
+                        </span>
+                      )}
+                      {strength >= 8 && (
+                        <span className={styles.highStrength}>
+                          � <strong>Artistic & Creative</strong> - More interpretation, artistic freedom
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className={styles.sliderContainer}>
+                    <div className={styles.sliderLabels}>
+                      <span className={styles.lowLabel}>Precise</span>
+                      <span className={styles.highLabel}>Creative</span>
+                    </div>
                     <input
                       id="strength-slider"
-                      type="range"                      min="1"
+                      type="range"
+                      min="1"
                       max="10"
                       step="1"
                       value={strength}
                       onChange={handleStrengthChange}
                       className={styles.slider}
-                    />                    <div className={styles.tickContainer}>
+                    />
+                    <div className={styles.tickContainer}>
                       {/* Generate 10 tick marks for values from 1 to 10 */}
                       {Array.from({ length: 10 }, (_, i) => (
                         <div 
@@ -440,7 +466,9 @@ export default function ImageGeneratorPage() {
                       ))}
                     </div>
                   </div>
-                </div>                <button
+                </div>
+
+                <button
                   className={`${styles.button} ${styles.generateButton}`}
                   onClick={handleGenerate}
                   disabled={loading || imageLoading || !(customPrompt || selectedPrompt)}
