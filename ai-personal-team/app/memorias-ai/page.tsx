@@ -104,27 +104,49 @@ export default function MemoriasAIPage() {
         }
         
         addDebugInfo(`Recording stopped, collected ${localAudioChunks.length} chunks`);
+        console.log("RECORDING STOPPED - Audio capture details:", {
+          chunksCollected: localAudioChunks.length,
+          mimeType: mimeType,
+          recorderMimeType: recorder.mimeType,
+          recorderState: recorder.state
+        });
         
         // Make sure we have data - use local array instead of state
         if (localAudioChunks.length === 0) {
-          console.error("No audio data captured!");
+          console.error("RECORDING ERROR - No audio data captured!");
+          addDebugInfo("ERROR: No audio chunks captured");
           setTranscribedText("Error: No se grabó audio. Por favor, intente nuevamente.");
           return;
         }
+        
+        // Log each chunk details
+        localAudioChunks.forEach((chunk, index) => {
+          console.log(`Chunk ${index}:`, {
+            size: chunk.size,
+            type: chunk.type
+          });
+        });
         
         // Create the audio blob with the actual type from the recorder
         // Use localAudioChunks instead of state variable
         const audioBlob = new Blob(localAudioChunks, { type: mimeType });
         addDebugInfo(`Creating audio blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
+        console.log("AUDIO BLOB CREATED:", {
+          size: audioBlob.size,
+          type: audioBlob.type,
+          mimeType: mimeType
+        });
         
         // Create URL for playback
         const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
         
         try {
+          console.log("STARTING TRANSCRIPTION PROCESS");
           await processTranscription(audioBlob);
         } catch (error) {
-          console.error("Error in transcription process:", error);
+          console.error("TRANSCRIPTION PROCESS ERROR:", error);
+          addDebugInfo(`Transcription process error: ${error}`);
           setTranscribedText("Error al transcribir. Por favor, intente nuevamente.");
         }
       };
@@ -193,10 +215,17 @@ export default function MemoriasAIPage() {
   const processTranscription = async (audioBlob: Blob) => {
     try {
       addDebugInfo(`Processing audio blob: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+      console.log("TRANSCRIPTION START - Audio blob details:", {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        constructor: audioBlob.constructor.name
+      });
       
       // Check if we have valid audio data
       if (!audioBlob || audioBlob.size === 0) {
-        throw new Error("No valid audio data to transcribe");
+        const errorMsg = "No valid audio data to transcribe";
+        addDebugInfo(`ERROR: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
       setTranscribedText("Transcribiendo audio...");
@@ -214,6 +243,7 @@ export default function MemoriasAIPage() {
       // First try direct transcription using the whisper_transcribe function
       try {
         addDebugInfo("Attempting direct transcription with Whisper API...");
+        console.log("DIRECT TRANSCRIPTION ATTEMPT - Starting");
         
         // Import the transcription function
         const { transcribeAudio } = await import('../../agents/whisper_transcribe');
@@ -222,6 +252,11 @@ export default function MemoriasAIPage() {
         const fileName = `recording-${Date.now()}.mp3`;
         
         addDebugInfo(`Calling transcribeAudio with fileName: ${fileName}`);
+        console.log("DIRECT TRANSCRIPTION - Calling transcribeAudio with:", {
+          fileName,
+          audioSize: audioBlob.size,
+          audioType: audioBlob.type
+        });
         
         // Call the transcription function directly
         const result = await transcribeAudio(audioBlob, {
@@ -231,6 +266,7 @@ export default function MemoriasAIPage() {
         });
         
         addDebugInfo(`Direct transcription successful: ${result.text.substring(0, 50)}...`);
+        console.log("DIRECT TRANSCRIPTION SUCCESS:", result);
         setTranscribedText(result.text);
         
         // Generate a story based on the transcription
@@ -239,11 +275,15 @@ export default function MemoriasAIPage() {
         return; // Exit early since direct transcription worked
       } catch (directError) {
         addDebugInfo(`Direct transcription failed: ${directError}`);
+        console.error("DIRECT TRANSCRIPTION FAILED:", directError);
         console.warn("Direct transcription failed, falling back to server API:", directError);
       }
       
       // Fallback to server API approach
       try {
+        addDebugInfo("Falling back to server API approach...");
+        console.log("SERVER API FALLBACK - Starting");
+        
         // Create a File object for more reliable server handling
         const timestamp = Date.now();
         const audioFile = new File(
@@ -252,7 +292,7 @@ export default function MemoriasAIPage() {
           { type: 'audio/mp3', lastModified: timestamp }
         );
         
-        console.log("Created audio file for server API:", {
+        console.log("SERVER API - Created audio file for server API:", {
           name: audioFile.name,
           size: audioFile.size,
           type: audioFile.type
@@ -266,33 +306,44 @@ export default function MemoriasAIPage() {
         formData.append('originalType', audioBlob.type);
         formData.append('timestamp', timestamp.toString());
         
-        console.log("Sending audio to server-side API endpoint");
+        console.log("SERVER API - Sending audio to server-side API endpoint");
+        addDebugInfo("Sending to server API...");
         
         const response = await fetch('/api/transcribe-audio', {
           method: 'POST',
           body: formData,
         });
         
+        console.log("SERVER API - Response received:", {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText
+        });
+        
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Server returned error:", errorData);
+          console.error("SERVER API - Server returned error:", errorData);
+          addDebugInfo(`Server error: ${JSON.stringify(errorData)}`);
           throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
         }
         
         const transcriptionResult = await response.json();
         const transcription = transcriptionResult.text;
         
-        console.log("Received transcription:", transcription);
+        console.log("SERVER API - Received transcription:", transcription);
+        addDebugInfo(`Server transcription successful: ${transcription.substring(0, 50)}...`);
         setTranscribedText(transcription);
         
         // After successful transcription, generate a story
         generateRealStory(transcription);
       } catch (serverError) {
-        console.error("Server API transcription error:", serverError);
+        console.error("SERVER API - Server API transcription error:", serverError);
+        addDebugInfo(`Server API error: ${serverError}`);
         throw serverError; // Re-throw to be caught by the outer catch
       }
     } catch (error) {
-      console.error("Error transcribing audio:", error);
+      console.error("TRANSCRIPTION ERROR - Error transcribing audio:", error);
+      addDebugInfo(`Transcription error: ${error}`);
       setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
     }
   };
