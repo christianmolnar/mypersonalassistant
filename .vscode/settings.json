@@ -5,10 +5,15 @@
             "path": "C:\\Program Files\\Git\\bin\\bash.exe",
             "args": []
         }
-    },    "files.exclude": {
+    },
+    "files.exclude": {
         "**/*.pdf": true
     },
     "search.exclude": {
         "**/*.pdf": true
-    }
+    },
+    "git.repositoryScanMaxDepth": 1,
+    "git.repositoryScanIgnoredFolders": [
+        "personal"
+    ]
 }
