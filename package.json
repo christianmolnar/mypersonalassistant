@@ -3,7 +3,8 @@
     "@azure/identity": "^4.9.0",
     "cheerio": "^1.1.0",
     "natural": "^8.1.0",
-    "puppeteer": "^24.12.1"
+    "puppeteer": "^24.12.1",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@types/formidable": "^3.4.5"
