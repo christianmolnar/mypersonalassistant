@@ -121,7 +121,19 @@ function generatePortfolioHistory(startValue: number, days: number) {
 
 // Generate trade data
 function generateTrades(count: number) {
-  const trades = []
+  const trades: Array<{
+    user_id: string;
+    symbol: string;
+    action: string;
+    quantity: number;
+    price: number;
+    trade_date: string;
+    confidence_score: number;
+    pnl: number;
+    outcome: string;
+    ai_reasoning: string;
+    market_conditions: string;
+  }> = []
   const actions = ['BUY', 'SELL']
   const outcomes = ['WIN', 'LOSS', 'PENDING']
   
@@ -135,7 +147,7 @@ function generateTrades(count: number) {
     const tradeDate = new Date()
     tradeDate.setDate(tradeDate.getDate() - Math.floor(Math.random() * 90)) // Last 90 days
     
-    let pnl = null
+    let pnl = 0
     let outcome = 'PENDING'
     
     if (tradeDate < new Date(Date.now() - 24 * 60 * 60 * 1000)) { // Older than 1 day
@@ -164,7 +176,14 @@ function generateTrades(count: number) {
 
 // Generate AI insights
 function generateAIInsights(count: number) {
-  const insights = []
+  const insights: Array<{
+    user_id: string;
+    insight_text: string;
+    insight_type: string;
+    confidence: number;
+    related_symbols: string[];
+    created_at: string;
+  }> = []
   const types = ['OPPORTUNITY', 'RISK', 'ANALYSIS', 'RECOMMENDATION']
   const sampleInsights = [
     'Portfolio showing strong momentum with tech sector outperforming',
