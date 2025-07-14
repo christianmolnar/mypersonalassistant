@@ -81,7 +81,14 @@ const STOCK_SYMBOLS = [
 
 // Generate portfolio history data
 function generatePortfolioHistory(startValue: number, days: number) {
-  const history = []
+  const history: Array<{
+    user_id: string;
+    date: string;
+    portfolio_value: number;
+    daily_return: number;
+    total_return: number;
+    positions_count: number;
+  }> = []
   let currentValue = startValue
   const startDate = new Date()
   startDate.setDate(startDate.getDate() - days)
