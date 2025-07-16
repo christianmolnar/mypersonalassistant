@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Exchange the code for an access token
     const tokenResponse = await axios.post(
-      'https://api.schwab.com/v1/oauth2/token',
+      'https://api.schwabapi.com/v1/oauth2/token',
       new URLSearchParams({
         client_id: process.env.SCHWAB_CLIENT_ID || '',
         client_secret: process.env.SCHWAB_CLIENT_SECRET || '',
