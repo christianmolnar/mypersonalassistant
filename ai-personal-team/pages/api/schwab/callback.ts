@@ -18,6 +18,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? `https://${process.env.VERCEL_URL}/api/schwab/callback`
         : 'http://localhost:3000/api/schwab/callback');
 
+    // Debug: log credentials and redirect URI
+    console.log('Schwab OAuth Token Exchange Debug:', {
+      client_id: process.env.SCHWAB_CLIENT_ID,
+      client_secret: process.env.SCHWAB_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      code,
+    });
+
     // Exchange the code for an access token
     const tokenResponse = await axios.post(
       'https://api.schwabapi.com/v1/oauth/token',
