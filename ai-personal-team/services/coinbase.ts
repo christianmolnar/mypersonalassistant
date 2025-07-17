@@ -62,8 +62,8 @@ class CoinbaseService {
   private baseUrl: string = 'https://api.coinbase.com/v2';
 
   constructor() {
-    this.apiKey = process.env.NEXT_PUBLIC_COINBASE_API_KEY || '';
-    this.apiSecret = process.env.NEXT_PUBLIC_COINBASE_API_SECRET || '';
+    this.apiKey = process.env.COINBASE_API_KEY || '';
+    this.apiSecret = process.env.COINBASE_API_SECRET || '';
     
     if (!this.apiKey || !this.apiSecret) {
       console.warn('Coinbase API credentials not found. Using mock data.');

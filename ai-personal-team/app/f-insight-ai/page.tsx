@@ -665,42 +665,125 @@ export default function FInsightAIPage() {
     return styles.neutral;
   };
 
-  // Coinbase API integration using CDP
+  // Coinbase API integration using official SDK
   const fetchCoinbaseData = async () => {
     try {
       setIsCryptoLoading(true);
       
-      // Use the updated cdp-crypto endpoint which provides real data
-      const response = await fetch('/api/cdp-crypto');
+      // Try our new official Coinbase SDK endpoint first
+      let success = false;
       
-      if (!response.ok) {
-        throw new Error(`API returned status ${response.status}`);
+      try {
+        console.log('Fetching data from official Coinbase SDK endpoint...');
+        const apiResponse = await fetch('/api/coinbase-official');
+        
+        if (apiResponse.ok) {
+          const apiData = await apiResponse.json();
+          
+          if (apiData.success) {
+            console.log(`Official Coinbase SDK data received (source: ${apiData.source}):`, {
+              transactions: apiData.transactions?.length || 0,
+              holdings: apiData.holdings?.length || 0
+            });
+            
+            // Set the holdings data if available
+            if (apiData.holdings && apiData.holdings.length > 0) {
+              setCryptoHoldings(apiData.holdings);
+              
+              // Debug holdings data
+              console.log('Crypto holdings:', apiData.holdings.map((h: any) => 
+                `${h.coin}: ${h.balance} (${h.value ? '$' + h.value.toFixed(2) : 'unknown value'})`
+              ).join(', '));
+            }
+            
+            // Set transaction data if available
+            if (apiData.transactions && apiData.transactions.length > 0) {
+              // If the transactions are already in the right format, use them directly
+              // Otherwise, format them to match our expected trade format
+              const formattedTrades = Array.isArray(apiData.transactions) ? 
+                apiData.transactions.slice(0, 20).map((tx: any) => {
+                  // Check if this is already in our format or needs conversion
+                  if (tx.action && tx.coin && tx.date && tx.amount !== undefined) {
+                    // Already in our format, just ensure action is uppercase
+                    return {
+                      ...tx,
+                      action: tx.action.toUpperCase()
+                    };
+                  } else {
+                    // Convert from Coinbase transaction format
+                    const date = new Date(tx.created_at).toISOString().split('T')[0];
+                    const coin = tx.amount.currency;
+                    const amountValue = parseFloat(tx.amount.amount);
+                    const action = amountValue >= 0 ? 'BUY' : 'SELL';
+                    
+                    return {
+                      date,
+                      coin,
+                      action,
+                      amount: Math.abs(amountValue),
+                      price: tx.native_amount ? Math.abs(parseFloat(tx.native_amount.amount)) / Math.abs(amountValue) : 0
+                    };
+                  }
+                }) : [];
+              
+              setCryptoTrades(formattedTrades);
+              success = true;
+              
+              // Debug transaction data
+              console.log('Crypto trades:', formattedTrades.slice(0, 3).map((t: any) => 
+                `${t.date}: ${t.action} ${t.amount} ${t.coin} at $${t.price}`
+              ).join(', ') + (formattedTrades.length > 3 ? '...' : ''));
+            }
+          } else {
+            console.error('API returned error:', apiData.error, apiData.details);
+          }
+        } else {
+          console.error('API returned status:', apiResponse.status);
+        }
+      } catch (apiError) {
+        console.error('Error using Coinbase API:', apiError);
       }
       
-      const data = await response.json();
-      
-      if (data.success) {
-        // Log the results for debugging
-        console.log('Crypto data received:', {
-          holdings: data.holdings,
-          trades: data.trades
-        });
+      // If direct API didn't succeed, fall back to the CDP API endpoint
+      if (!success) {
+        console.log('Falling back to CDP API for crypto data');
         
-        setCryptoHoldings(data.holdings);
-        
-        // Convert trade actions to uppercase to match the UI's expected format
-        const formattedTrades = data.trades.map((trade: any) => ({
-          ...trade,
-          action: trade.action.toUpperCase()
-        }));
-        
-        setCryptoTrades(formattedTrades);
-        
-        // Update last update timestamp
-        setLastUpdate(new Date());
-        console.log('Successfully loaded crypto data from CDP');
-      } else {
-        throw new Error(data.error || 'Unknown API error');
+        try {
+          const response = await fetch('/api/cdp-crypto');
+          
+          if (!response.ok) {
+            throw new Error(`API returned status ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            // Log the results for debugging
+            console.log('CDP Crypto data received:', {
+              holdings: data.holdings,
+              trades: data.trades
+            });
+            
+            setCryptoHoldings(data.holdings);
+            
+            // Convert trade actions to uppercase to match the UI's expected format
+            const formattedTrades = data.trades.map((trade: any) => ({
+              ...trade,
+              action: trade.action.toUpperCase()
+            }));
+            
+            setCryptoTrades(formattedTrades);
+            success = true;
+            
+            // Update timestamp
+            setLastUpdate(new Date());
+            console.log('Successfully loaded crypto data from CDP');
+          } else {
+            throw new Error(data.error || 'Unknown API error');
+          }
+        } catch (cdpError) {
+          console.error('Error fetching from CDP API:', cdpError);
+        }
       }
       
       setIsCryptoLoading(false);
@@ -831,7 +914,6 @@ export default function FInsightAIPage() {
             </div>
           </div>
         </section>
-      }
 
       {/* Enhanced Charts Section with Time Period Selection */}
       <section className={styles.chartsSection}>
@@ -1453,6 +1535,20 @@ export default function FInsightAIPage() {
       {activeTab === 'crypto' && (
         <div className={styles.cryptoSection}>
           <h2>Crypto Holdings</h2>
+          {cryptoHoldings.length === 0 && !isCryptoLoading && (
+            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
+              <p><strong>No Coinbase data available.</strong> This could be due to API authentication issues.</p>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <Link href="/coinbase-diagnostic" style={{ color: '#4CAF50', textDecoration: 'underline' }}>
+                  Run Coinbase API Diagnostics
+                </Link>
+                <span style={{ color: '#999' }}>|</span>
+                <Link href="/coinbase-setup" style={{ color: '#4CAF50', textDecoration: 'underline' }}>
+                  View Setup Instructions
+                </Link>
+              </div>
+            </div>
+          )}
           <table className={styles.positionsTable}>
             <thead>
               <tr>
