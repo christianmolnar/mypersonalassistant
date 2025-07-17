@@ -21,20 +21,7 @@ class CdpService {
   private isInitialized = false;
   
   constructor() {
-    // We'll initialize on demand instead of in constructor to avoid server-side issues
-    // with Next.js when environment variables aren't available during build
-  }
-  
-  /**
-   * Initialize the CDP client with credentials from environment variables
-   * This needs to be called before using any other methods
-   */
-  async initialize() {
-    if (this.isInitialized && this.client) {
-      console.log('CDP client already initialized');
-      return;
-    }
-    return this.initializeClient();
+    this.initializeClient();
   }
   
   private async initializeClient() {
@@ -332,109 +319,39 @@ class CdpService {
         return [];
       }
       
-      // Check if we have a CDP_ADDRESS before trying to use it
-      if (!process.env.CDP_ADDRESS) {
-        console.log('No wallet address found, cannot fetch transactions');
+      // Since fetching real trade data requires more specific API knowledge,
+      // we'll use simplified logic for now. This can be enhanced later.
+      
+      if (!this.client.evm) {
+        console.error('EVM API not available on CDP client');
         return [];
       }
       
-      const address = process.env.CDP_ADDRESS.startsWith('0x') 
-        ? process.env.CDP_ADDRESS 
-        : `0x${process.env.CDP_ADDRESS}`;
-      
-      // We need to generate some sample transactions since we don't have direct API access
-      console.log(`Creating sample transactions for address: ${address}`);
-      
-      // First, verify we can connect to CDP API with this address
       try {
-        const formattedAddress = address as `0x${string}`;
-        await this.client.evm.getAccount({ address: formattedAddress });
-        console.log('Successfully connected to CDP API');
-      } catch (cdpError) {
-        console.warn('Warning: Could not verify address with CDP API', cdpError);
-        // Continue anyway to generate sample data
-      }
-      
-      // Since we can't get real transaction history without an API key or proper permissions,
-      // we'll create representative sample transactions based on the actual Bitcoin holding
-      console.log('Creating representative transaction history...');
-      
-      // Generate realistic sample transactions
-      // In production, you'd integrate with a proper blockchain API with authentication
-      const today = new Date();
-      const transactions: CryptoTrade[] = [];
-      
-      // Add the BTC purchase that matches our actual balance
-      transactions.push({
-        date: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 5 days ago
-        coin: 'BTC',
-        action: 'buy',
-        amount: 0.00013600,
-        price: 118088 // Current BTC price around $118,088 USD
-      });
-      
-      // Add some additional realistic transactions
-      const cryptos = ['ETH', 'BTC', 'SOL', 'USDC'];
-      const actions = ['buy', 'sell'];
-      
-      for (let i = 1; i <= 5; i++) {
-        const daysAgo = 30 + i * 15; // Spread transactions over past few months
-        const crypto = cryptos[Math.floor(Math.random() * cryptos.length)];
-        const action = actions[Math.floor(Math.random() * actions.length)];
-        let amount, price;
-        
-        switch (crypto) {
-          case 'BTC':
-            amount = 0.0001 + Math.random() * 0.001;
-            price = 100000 + Math.random() * 20000;
-            break;
-          case 'ETH':
-            amount = 0.01 + Math.random() * 0.1;
-            price = 3000 + Math.random() * 500;
-            break;
-          case 'SOL':
-            amount = 0.5 + Math.random() * 2;
-            price = 150 + Math.random() * 30;
-            break;
-          case 'USDC':
-            amount = 100 + Math.random() * 900;
-            price = 1;
-            break;
-          default:
-            amount = 0.1;
-            price = 100;
+        // Check if we have a CDP_ADDRESS before trying to use it
+        if (process.env.CDP_ADDRESS) {
+          const address = process.env.CDP_ADDRESS.startsWith('0x') 
+            ? process.env.CDP_ADDRESS as `0x${string}` 
+            : `0x${process.env.CDP_ADDRESS}` as `0x${string}`;
+          
+          await this.client.evm.getAccount({ address });
+          console.log('Successfully connected to CDP API');
+        } else {
+          console.log('No wallet address found, skipping account verification');
         }
         
-        transactions.push({
-          date: new Date(today.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          coin: crypto,
-          action,
-          amount: parseFloat(amount.toFixed(6)),
-          price: parseFloat(price.toFixed(2))
-        });
-      }
-      
-      console.log(`Created ${transactions.length} representative transactions`);
-      return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // For now, return an empty array as we don't have real trade data yet
+        return [];
       } catch (error) {
-        console.error('Error fetching transaction data from Etherscan:', error);
-        
-        // Provide some sample data as fallback based on BTC holding
-        return [
-          {
-            date: new Date().toISOString().split('T')[0],
-            coin: 'BTC',
-            action: 'buy',
-            amount: 0.00013600,
-            price: 16.06 / 0.00013600
-          }
-        ];
+        console.error('Error fetching transaction data:', error);
+        return [];
       }
     } catch (error) {
       console.error("Error fetching crypto trades:", error);
       return [];
     }
   }
+}
 
 // Export a singleton instance
 export const cdpService = new CdpService();

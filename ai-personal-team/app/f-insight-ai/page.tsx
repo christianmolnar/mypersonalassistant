@@ -670,8 +670,8 @@ export default function FInsightAIPage() {
     try {
       setIsCryptoLoading(true);
       
-      // Use the CDP test endpoint which is working successfully
-      const response = await fetch('/api/cdp-test');
+      // Use the updated cdp-crypto endpoint which provides real data
+      const response = await fetch('/api/cdp-crypto');
       
       if (!response.ok) {
         throw new Error(`API returned status ${response.status}`);
@@ -680,8 +680,21 @@ export default function FInsightAIPage() {
       const data = await response.json();
       
       if (data.success) {
+        // Log the results for debugging
+        console.log('Crypto data received:', {
+          holdings: data.holdings,
+          trades: data.trades
+        });
+        
         setCryptoHoldings(data.holdings);
-        setCryptoTrades(data.trades);
+        
+        // Convert trade actions to uppercase to match the UI's expected format
+        const formattedTrades = data.trades.map((trade: any) => ({
+          ...trade,
+          action: trade.action.toUpperCase()
+        }));
+        
+        setCryptoTrades(formattedTrades);
         
         // Update last update timestamp
         setLastUpdate(new Date());
@@ -818,7 +831,7 @@ export default function FInsightAIPage() {
             </div>
           </div>
         </section>
-      )}
+      }
 
       {/* Enhanced Charts Section with Time Period Selection */}
       <section className={styles.chartsSection}>
