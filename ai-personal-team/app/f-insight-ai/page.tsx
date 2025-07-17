@@ -20,6 +20,22 @@ interface PortfolioSummary {
   riskScore: number;
 }
 
+// Crypto interfaces
+interface CryptoHolding {
+  coin: string;
+  balance: number;
+  value: number;
+  change: string;
+}
+
+interface CryptoTrade {
+  date: string;
+  coin: string;
+  action: 'BUY' | 'SELL';
+  amount: number;
+  price: number;
+}
+
 interface TradingPosition {
   symbol: string;
   companyName: string;
@@ -90,6 +106,12 @@ export default function FInsightAIPage() {
   const [sectorAllocation, setSectorAllocation] = useState<SectorAllocation[]>([]);
   const [aiInsights, setAiInsights] = useState<string[]>([]);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  // Crypto tab state
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'crypto'>('portfolio');
+  const [cryptoAgentActive, setCryptoAgentActive] = useState<boolean>(false);
+  const [cryptoHoldings, setCryptoHoldings] = useState<CryptoHolding[]>([]);
+  const [cryptoTrades, setCryptoTrades] = useState<CryptoTrade[]>([]);
+  const [isCryptoLoading, setIsCryptoLoading] = useState(true);
 
   // Enhanced mock data with comprehensive trading scenarios
   const mockPortfolio: PortfolioSummary = {
@@ -99,13 +121,13 @@ export default function FInsightAIPage() {
     totalPnLPercent: 39.85,
     dayPnL: 1800,
     dayPnLPercent: 1.45,
-    winRate: 72.3,
-    activePositions: 15,
+    winRate: 62,
+    activePositions: 8,
     sharpeRatio: 2.1,
-    maxDrawdown: 8.2,
-    totalTrades: 156,
-    avgHoldingPeriod: 12.5, // days
-    riskScore: 6.2 // out of 10
+    maxDrawdown: -12.5,
+    totalTrades: 48,
+    avgHoldingPeriod: 14,
+    riskScore: 7.2
   };
 
   const mockPositions: TradingPosition[] = [
@@ -576,6 +598,13 @@ export default function FInsightAIPage() {
     setPerformanceMetrics(mockPerformanceMetrics[period]);
   };
 
+  // Add effect to load crypto data when tab changes
+  useEffect(() => {
+    if (activeTab === 'crypto') {
+      fetchCoinbaseData();
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     // Set dark theme
     document.body.style.background = 
@@ -636,6 +665,42 @@ export default function FInsightAIPage() {
     return styles.neutral;
   };
 
+  // Coinbase API integration using CDP
+  const fetchCoinbaseData = async () => {
+    try {
+      setIsCryptoLoading(true);
+      
+      // Use the CDP test endpoint which is working successfully
+      const response = await fetch('/api/cdp-test');
+      
+      if (!response.ok) {
+        throw new Error(`API returned status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCryptoHoldings(data.holdings);
+        setCryptoTrades(data.trades);
+        
+        // Update last update timestamp
+        setLastUpdate(new Date());
+        console.log('Successfully loaded crypto data from CDP');
+      } else {
+        throw new Error(data.error || 'Unknown API error');
+      }
+      
+      setIsCryptoLoading(false);
+    } catch (error) {
+      console.error('Error fetching Coinbase data:', error);
+      setIsCryptoLoading(false);
+      
+      // Set empty arrays instead of mock data
+      setCryptoHoldings([]);
+      setCryptoTrades([]);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={styles.container}>
@@ -669,20 +734,38 @@ export default function FInsightAIPage() {
           </span>
         </div>
       </header>
+      
+      {/* Tab Navigation below header */}
+      <nav className={styles.tabNav}>
+        <button
+          className={activeTab === 'portfolio' ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+          onClick={() => setActiveTab('portfolio')}
+        >
+          Main
+        </button>
+        <button
+          className={activeTab === 'crypto' ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+          onClick={() => setActiveTab('crypto')}
+        >
+          Crypto
+        </button>
+      </nav>
 
-      {/* Portfolio Summary KPIs */}
-      {portfolio && (
-        <section className={styles.portfolioSummary} aria-label="Portfolio Summary">
-          <div className={styles.kpiGrid} role="grid" aria-label="Key Performance Indicators">
-            <div className={styles.kpiCard} role="gridcell" aria-label="Total Portfolio Value">
-              <h3>Total Portfolio Value</h3>
-              <div className={styles.kpiValue} aria-live="polite">
-                {formatCurrency(portfolio.totalValue)}
+      {/* Conditionally render content based on active tab */}
+      {activeTab === 'portfolio' && portfolio && (
+        <>
+          {/* Portfolio Summary KPIs */}
+          <section className={styles.portfolioSummary} aria-label="Portfolio Summary">
+            <div className={styles.kpiGrid} role="grid" aria-label="Key Performance Indicators">
+              <div className={styles.kpiCard} role="gridcell" aria-label="Total Portfolio Value">
+                <h3>Total Portfolio Value</h3>
+                <div className={styles.kpiValue} aria-live="polite">
+                  {formatCurrency(portfolio.totalValue)}
+                </div>
+                <div className={`${styles.kpiChange} ${getColorClass(portfolio.dayPnL)}`} aria-label={`Daily change: ${formatCurrency(portfolio.dayPnL)}`}>
+                  {formatCurrency(portfolio.dayPnL)} ({formatPercent(portfolio.dayPnLPercent)}) today
+                </div>
               </div>
-              <div className={`${styles.kpiChange} ${getColorClass(portfolio.dayPnL)}`} aria-label={`Daily change: ${formatCurrency(portfolio.dayPnL)}`}>
-                {formatCurrency(portfolio.dayPnL)} ({formatPercent(portfolio.dayPnLPercent)}) today
-              </div>
-            </div>
 
             <div className={styles.kpiCard} role="gridcell" aria-label="Total Profit and Loss">
               <h3>Total P&L</h3>
@@ -823,158 +906,156 @@ export default function FInsightAIPage() {
 
           {/* Enhanced Chart Visualization */}
           <div className={styles.chartContainer}>
-            <div className={styles.chartPlaceholder}>
-              <div className={styles.performanceChart}>
-                <div className={styles.chartHeader}>
-                  <span className={styles.chartTitle}>Portfolio Value Over Time</span>
-                  <span className={styles.currentValue}>
-                    Current: ${(portfolio?.totalValue || 0).toLocaleString()}
-                  </span>
+            <div className={styles.performanceChart}>
+              <div className={styles.chartHeader}>
+                <span className={styles.chartTitle}>Portfolio Value Over Time</span>
+                <span className={styles.currentValue}>
+                  Current: ${(portfolio?.totalValue || 0).toLocaleString()}
+                </span>
+              </div>
+              
+              {/* Enhanced chart with grid and better visualization */}
+              <div className={styles.chartArea}>
+                <div className={styles.chartGrid}>
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className={styles.gridLine} style={{ top: `${i * 25}%` }}></div>
+                  ))}
                 </div>
                 
-                {/* Enhanced chart with grid and better visualization */}
-                <div className={styles.chartArea}>
-                  <div className={styles.chartGrid}>
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className={styles.gridLine} style={{ top: `${i * 25}%` }}></div>
-                    ))}
-                  </div>
-                  
-                  {/* Line Chart Implementation */}
-                  <svg 
-                    className={styles.chartSvg}
-                    viewBox="0 0 100 100" 
-                    preserveAspectRatio="none"
-                    style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 2 }}
-                  >
-                    {/* Chart Line */}
-                    <polyline
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="0.4"
-                      points={portfolioHistory.map((point, index) => {
-                        const maxValue = Math.max(...portfolioHistory.map(p => p.value));
-                        const minValue = Math.min(...portfolioHistory.map(p => p.value));
-                        const range = maxValue - minValue;
-                        const yPosition = range > 0 ? 85 - (((point.value - minValue) / range) * 70) : 50;
-                        const xPosition = 10 + (index / (portfolioHistory.length - 1)) * 80;
-                        return `${xPosition},${yPosition}`;
-                      }).join(' ')}
-                    />
-                    
-                    {/* Invisible hover points for tooltips */}
-                    {portfolioHistory.map((point, index) => {
+                {/* Line Chart Implementation */}
+                <svg 
+                  className={styles.chartSvg}
+                  viewBox="0 0 100 100" 
+                  preserveAspectRatio="none"
+                  style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 2 }}
+                >
+                  {/* Chart Line */}
+                  <polyline
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="0.4"
+                    points={portfolioHistory.map((point, index) => {
                       const maxValue = Math.max(...portfolioHistory.map(p => p.value));
                       const minValue = Math.min(...portfolioHistory.map(p => p.value));
                       const range = maxValue - minValue;
                       const yPosition = range > 0 ? 85 - (((point.value - minValue) / range) * 70) : 50;
                       const xPosition = 10 + (index / (portfolioHistory.length - 1)) * 80;
-                      
-                      return (
-                        <circle
-                          key={index}
-                          cx={xPosition}
-                          cy={yPosition}
-                          r="3"
-                          fill="transparent"
-                          stroke="transparent"
-                          className={styles.chartHoverPoint}
-                        >
-                          <title>{`${point.date}: $${point.value.toLocaleString()} (${point.dailyReturn >= 0 ? '+' : ''}${point.dailyReturn.toFixed(2)}%)`}</title>
-                        </circle>
-                      );
-                    })}
-                  </svg>
+                      return `${xPosition},${yPosition}`;
+                    }).join(' ')}
+                  />
                   
-                  {/* Y-Axis Labels */}
-                  <div className={styles.yAxisLabels}>
-                    <span className={styles.yAxisLabel} style={{ top: '10%' }}>
-                      ${Math.max(...portfolioHistory.map(p => p.value)).toLocaleString()}
-                    </span>
-                    <span className={styles.yAxisLabel} style={{ top: '30%' }}>
-                      ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) * 0.75 + Math.min(...portfolioHistory.map(p => p.value)) * 0.25)).toLocaleString()}
-                    </span>
-                    <span className={styles.yAxisLabel} style={{ top: '50%' }}>
-                      ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) + Math.min(...portfolioHistory.map(p => p.value))) / 2).toLocaleString()}
-                    </span>
-                    <span className={styles.yAxisLabel} style={{ top: '70%' }}>
-                      ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) * 0.25 + Math.min(...portfolioHistory.map(p => p.value)) * 0.75)).toLocaleString()}
-                    </span>
-                    <span className={styles.yAxisLabel} style={{ top: '90%' }}>
-                      ${Math.min(...portfolioHistory.map(p => p.value)).toLocaleString()}
-                    </span>
-                  </div>
-                  
-                  {/* X-Axis Labels */}
-                  <div className={styles.xAxisLabels}>
-                    <span className={styles.xAxisLabel} style={{ left: '10%' }}>
-                      {new Date(portfolioHistory[0]?.date).toLocaleDateString('en-US', 
-                        selectedTimePeriod === 'Day' 
-                          ? { month: 'short', day: 'numeric', hour: 'numeric' }
-                          : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
-                          ? { month: 'short', day: 'numeric' }
-                          : { month: 'short', year: 'numeric' }
-                      )}
-                    </span>
-                    <span className={styles.xAxisLabel} style={{ left: '30%' }}>
-                      {portfolioHistory[Math.floor(portfolioHistory.length * 0.25)] && 
-                        new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.25)].date).toLocaleDateString('en-US', 
-                          selectedTimePeriod === 'Day' 
-                            ? { month: 'short', day: 'numeric', hour: 'numeric' }
-                            : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
-                            ? { month: 'short', day: 'numeric' }
-                            : { month: 'short', year: 'numeric' }
-                        )
-                      }
-                    </span>
-                    <span className={styles.xAxisLabel} style={{ left: '50%' }}>
-                      {portfolioHistory[Math.floor(portfolioHistory.length * 0.5)] && 
-                        new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.5)].date).toLocaleDateString('en-US', 
-                          selectedTimePeriod === 'Day' 
-                            ? { month: 'short', day: 'numeric', hour: 'numeric' }
-                            : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
-                            ? { month: 'short', day: 'numeric' }
-                            : { month: 'short', year: 'numeric' }
-                        )
-                      }
-                    </span>
-                    <span className={styles.xAxisLabel} style={{ left: '70%' }}>
-                      {portfolioHistory[Math.floor(portfolioHistory.length * 0.75)] && 
-                        new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.75)].date).toLocaleDateString('en-US', 
-                          selectedTimePeriod === 'Day' 
-                            ? { month: 'short', day: 'numeric', hour: 'numeric' }
-                            : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
-                            ? { month: 'short', day: 'numeric' }
-                            : { month: 'short', year: 'numeric' }
-                        )
-                      }
-                    </span>
-                    <span className={styles.xAxisLabel} style={{ left: '90%' }}>
-                      {new Date(portfolioHistory[portfolioHistory.length - 1]?.date).toLocaleDateString('en-US', 
-                        selectedTimePeriod === 'Day' 
-                          ? { month: 'short', day: 'numeric', hour: 'numeric' }
-                          : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
-                          ? { month: 'short', day: 'numeric' }
-                          : { month: 'short', year: 'numeric' }
-                      )}
-                    </span>
-                  </div>
+                  {/* Invisible hover points for tooltips */}
+                  {portfolioHistory.map((point, index) => {
+                    const maxValue = Math.max(...portfolioHistory.map(p => p.value));
+                    const minValue = Math.min(...portfolioHistory.map(p => p.value));
+                    const range = maxValue - minValue;
+                    const yPosition = range > 0 ? 85 - (((point.value - minValue) / range) * 70) : 50;
+                    const xPosition = 10 + (index / (portfolioHistory.length - 1)) * 80;
+                    
+                    return (
+                      <circle
+                        key={index}
+                        cx={xPosition}
+                        cy={yPosition}
+                        r="3"
+                        fill="transparent"
+                        stroke="transparent"
+                        className={styles.chartHoverPoint}
+                      >
+                        <title>{`${point.date}: $${point.value.toLocaleString()} (${point.dailyReturn >= 0 ? '+' : ''}${point.dailyReturn.toFixed(2)}%)`}</title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+                
+                {/* Y-Axis Labels */}
+                <div className={styles.yAxisLabels}>
+                  <span className={styles.yAxisLabel} style={{ top: '10%' }}>
+                    ${Math.max(...portfolioHistory.map(p => p.value)).toLocaleString()}
+                  </span>
+                  <span className={styles.yAxisLabel} style={{ top: '30%' }}>
+                    ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) * 0.75 + Math.min(...portfolioHistory.map(p => p.value)) * 0.25)).toLocaleString()}
+                  </span>
+                  <span className={styles.yAxisLabel} style={{ top: '50%' }}>
+                    ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) + Math.min(...portfolioHistory.map(p => p.value))) / 2).toLocaleString()}
+                  </span>
+                  <span className={styles.yAxisLabel} style={{ top: '70%' }}>
+                    ${Math.round((Math.max(...portfolioHistory.map(p => p.value)) * 0.25 + Math.min(...portfolioHistory.map(p => p.value)) * 0.75)).toLocaleString()}
+                  </span>
+                  <span className={styles.yAxisLabel} style={{ top: '90%' }}>
+                    ${Math.min(...portfolioHistory.map(p => p.value)).toLocaleString()}
+                  </span>
                 </div>
                 
-                {/* Chart Statistics */}
-                {performanceMetrics && (
-                  <div className={styles.chartStats}>
-                    <span>📈 Best Day: +{performanceMetrics.bestDay.toFixed(2)}%</span>
-                    <span>📉 Worst Day: {performanceMetrics.worstDay.toFixed(2)}%</span>
-                    <span>🎯 Target: {selectedTimePeriod === 'Month' ? '20%/month' : 
-                      selectedTimePeriod === 'Year' ? '100%/year' : 
-                      selectedTimePeriod === 'Day' ? '0.5%/day' : 
-                      selectedTimePeriod === 'Week' ? '3%/week' : 
-                      selectedTimePeriod === '3 Year' ? '50%/year' : '40%/year'}</span>
-                    <span>⚡ Current: {performanceMetrics.totalReturn >= 0 ? '+' : ''}{performanceMetrics.totalReturn.toFixed(1)}%</span>
-                  </div>
-                )}
+                {/* X-Axis Labels */}
+                <div className={styles.xAxisLabels}>
+                  <span className={styles.xAxisLabel} style={{ left: '10%' }}>
+                    {new Date(portfolioHistory[0]?.date).toLocaleDateString('en-US', 
+                      selectedTimePeriod === 'Day' 
+                        ? { month: 'short', day: 'numeric', hour: 'numeric' }
+                        : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
+                        ? { month: 'short', day: 'numeric' }
+                        : { month: 'short', year: 'numeric' }
+                    )}
+                  </span>
+                  <span className={styles.xAxisLabel} style={{ left: '30%' }}>
+                    {portfolioHistory[Math.floor(portfolioHistory.length * 0.25)] && 
+                      new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.25)].date).toLocaleDateString('en-US', 
+                        selectedTimePeriod === 'Day' 
+                          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+                          : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
+                          ? { month: 'short', day: 'numeric' }
+                          : { month: 'short', year: 'numeric' }
+                      )
+                    }
+                  </span>
+                  <span className={styles.xAxisLabel} style={{ left: '50%' }}>
+                    {portfolioHistory[Math.floor(portfolioHistory.length * 0.5)] && 
+                      new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.5)].date).toLocaleDateString('en-US', 
+                        selectedTimePeriod === 'Day' 
+                          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+                          : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
+                          ? { month: 'short', day: 'numeric' }
+                          : { month: 'short', year: 'numeric' }
+                      )
+                    }
+                  </span>
+                  <span className={styles.xAxisLabel} style={{ left: '70%' }}>
+                    {portfolioHistory[Math.floor(portfolioHistory.length * 0.75)] && 
+                      new Date(portfolioHistory[Math.floor(portfolioHistory.length * 0.75)].date).toLocaleDateString('en-US', 
+                        selectedTimePeriod === 'Day' 
+                          ? { month: 'short', day: 'numeric', hour: 'numeric' }
+                          : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
+                          ? { month: 'short', day: 'numeric' }
+                          : { month: 'short', year: 'numeric' }
+                      )
+                    }
+                  </span>
+                  <span className={styles.xAxisLabel} style={{ left: '90%' }}>
+                    {new Date(portfolioHistory[portfolioHistory.length - 1]?.date).toLocaleDateString('en-US', 
+                      selectedTimePeriod === 'Day' 
+                        ? { month: 'short', day: 'numeric', hour: 'numeric' }
+                        : selectedTimePeriod === 'Week' || selectedTimePeriod === 'Month'
+                        ? { month: 'short', day: 'numeric' }
+                        : { month: 'short', year: 'numeric' }
+                    )}
+                  </span>
+                </div>
               </div>
+              
+              {/* Chart Statistics */}
+              {performanceMetrics && (
+                <div className={styles.chartStats}>
+                  <span>📈 Best Day: +{performanceMetrics.bestDay.toFixed(2)}%</span>
+                  <span>📉 Worst Day: {performanceMetrics.worstDay.toFixed(2)}%</span>
+                  <span>🎯 Target: {selectedTimePeriod === 'Month' ? '20%/month' : 
+                    selectedTimePeriod === 'Year' ? '100%/year' : 
+                    selectedTimePeriod === 'Day' ? '0.5%/day' : 
+                    selectedTimePeriod === 'Week' ? '3%/week' : 
+                    selectedTimePeriod === '3 Year' ? '50%/year' : '40%/year'}</span>
+                  <span>⚡ Current: {performanceMetrics.totalReturn >= 0 ? '+' : ''}{performanceMetrics.totalReturn.toFixed(1)}%</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1341,17 +1422,95 @@ export default function FInsightAIPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className={styles.footer}>
-        <Link href="/" className={styles.backButton}>
-          ← Back to Mission Control
-        </Link>
-        
-        <div className={styles.footerInfo}>
-          <span>Paper Trading Mode • No Real Money at Risk</span>
-          <span>Last Updated: {new Date().toLocaleTimeString()}</span>
+          {/* Footer for Portfolio tab */}
+          <footer className={styles.footer}>
+            <Link href="/" className={styles.backButton}>
+              ← Back to Mission Control
+            </Link>
+            
+            <div className={styles.footerInfo}>
+              <span>Paper Trading Mode • No Real Money at Risk</span>
+              <span>Last Updated: {new Date().toLocaleTimeString()}</span>
+            </div>
+          </footer>
+        </>
+      )}
+
+      {/* Crypto Tab Content */}
+      {activeTab === 'crypto' && (
+        <div className={styles.cryptoSection}>
+          <h2>Crypto Holdings</h2>
+          <table className={styles.positionsTable}>
+            <thead>
+              <tr>
+                <th>Coin</th><th>Balance</th><th>Value</th><th>% Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isCryptoLoading ? (
+                <tr>
+                  <td colSpan={4} style={{textAlign: 'center'}}>Loading crypto data...</td>
+                </tr>
+              ) : cryptoHoldings.length > 0 ? cryptoHoldings.map(h => (
+                <tr key={h.coin}>
+                  <td>{h.coin}</td><td>{h.balance}</td><td>${h.value}</td><td>{h.change}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={4} style={{textAlign: 'center'}}>No real Coinbase data available</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <h3>Trade History</h3>
+          <table className={styles.positionsTable}>
+            <thead>
+              <tr>
+                <th>Date</th><th>Coin</th><th>Action</th><th>Amount</th><th>Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isCryptoLoading ? (
+                <tr>
+                  <td colSpan={5} style={{textAlign: 'center'}}>Loading trade data...</td>
+                </tr>
+              ) : cryptoTrades.length > 0 ? cryptoTrades.map((t, i) => (
+                <tr key={i}>
+                  <td>{t.date}</td><td>{t.coin}</td><td>{t.action}</td><td>{t.amount}</td><td>${t.price}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={5} style={{textAlign: 'center'}}>No real Coinbase trades available</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <h3>Agent Status</h3>
+          <div>
+            <span>Status: {cryptoAgentActive ? 'Active' : 'Inactive'}</span>
+            <button
+              className={styles.actionButton}
+              onClick={() => setCryptoAgentActive(a => !a)}
+              style={{ marginLeft: 16 }}
+            >{cryptoAgentActive ? 'Pause Agent' : 'Activate Agent'}</button>
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <span>Agent log and decision feed will appear here.</span>
+          </div>
+          
+          {/* Footer for Crypto tab */}
+          <footer className={styles.footer}>
+            <Link href="/" className={styles.backButton}>
+              ← Back to Mission Control
+            </Link>
+            
+            <div className={styles.footerInfo}>
+              <span>Paper Trading Mode • No Real Money at Risk</span>
+              <span>Last Updated: {new Date().toLocaleTimeString()}</span>
+            </div>
+          </footer>
         </div>
-      </footer>
+      )}
     </div>
   );
 }
