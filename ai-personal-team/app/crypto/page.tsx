@@ -1,3 +1,5 @@
+"use client";
+
 import { CryptoPortfolio } from '../../components/CryptoPortfolio';
 
 export default function CryptoPage() {
