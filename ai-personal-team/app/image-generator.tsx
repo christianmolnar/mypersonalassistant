@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import prompts from '../data/imagePrompts';
 import styles from './image-generator.module.css';
