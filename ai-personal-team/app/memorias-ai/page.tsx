@@ -1,253 +1,96 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
 import { transcribeAudio } from '../../agents/whisper_transcribe';
-// REMOVED: import { generateStoryFromTranscription } from '../../agents/story_writer';
-// This was used for creative story generation which we've eliminated
+import { getArgentineVoices } from '../../agents/tts';
+import { MemoryManager } from '../../lib/AgentMemory';
+import { formatStoryText } from '../../lib/utils';
 
 export default function MemoriasAIPage() {
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState<string | null>(null);
   const [transcribedText, setTranscribedText] = useState<string | null>(null);
-  const [generatedStory, setGeneratedStory] = useState<string | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
-  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [isEmailSending, setIsEmailSending] = useState(false);
+  const [audioMimeType, setAudioMimeType] = useState<string>('audio/webm'); // Track actual format
   
-  // New states for story management
-  const [storyInProgress, setStoryInProgress] = useState(false);
-  const [currentStory, setCurrentStory] = useState<string>('');
-  const [aiEncouragement, setAiEncouragement] = useState<string | null>(null);
-  const [storyComplete, setStoryComplete] = useState(false);
-  const [isPlayingTTS, setIsPlayingTTS] = useState(false);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  
-  // New states for detail prompting
-  const [needsDetailsPrompt, setNeedsDetailsPrompt] = useState(false);
-  const [pendingDetailsType, setPendingDetailsType] = useState<string | null>(null);
-  const [isWaitingForDetails, setIsWaitingForDetails] = useState(false);
-  
-  // Voice selection state
-  const [selectedVoice, setSelectedVoice] = useState('nova'); // Default to Carmen (nova - feminine)
-
-  // New states for download functionality
-  const [audioSegments, setAudioSegments] = useState<Blob[]>([]); // Store all recorded audio segments
-  const [storyTitle, setStoryTitle] = useState<string>(''); // Store story title for filename
-  
-  // New state for recording management
-  const [recordingCompleted, setRecordingCompleted] = useState(false); // Track when recording is done but not processed
-  const [pendingAudioBlob, setPendingAudioBlob] = useState<Blob | null>(null); // Store audio before processing
-  
-  // New states for last recording management
-  const [lastRecordingTranscription, setLastRecordingTranscription] = useState<string>('');
-  const [lastRecordingAudio, setLastRecordingAudio] = useState<Blob | null>(null);
-  const [canDiscardLast, setCanDiscardLast] = useState(false);
-  
-  // State to track questions already asked to avoid repetition
+  // Agent voice and interaction states
+  const [selectedVoice, setSelectedVoice] = useState('nova'); // Default to Valentina
+  const [agentQuestion, setAgentQuestion] = useState<string | null>(null);
+  const [agentAudio, setAgentAudio] = useState<string | null>(null);
+  const [isGeneratingQuestion, setIsGeneratingQuestion] = useState(false);
   const [questionsAsked, setQuestionsAsked] = useState<string[]>([]);
+  
+  // Conversation workflow states
+  const [conversationPhase, setConversationPhase] = useState<'setup' | 'info_gathering' | 'storytelling' | 'completed'>('info_gathering');
+  const [currentAgentMessage, setCurrentAgentMessage] = useState<string>('');
+  const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [awaitingUserResponse, setAwaitingUserResponse] = useState(false);
+  const [storySegments, setStorySegments] = useState<string[]>([]);
+  const [infoGatheringStep, setInfoGatheringStep] = useState<'name' | 'age' | 'location' | 'returning_user_check' | 'completed'>('name');
+  
+  // Auto-question timing
+  const silenceTimer = useRef<NodeJS.Timeout | null>(null);
+  const [lastTranscriptionTime, setLastTranscriptionTime] = useState<number>(0);
+  
+  // Form fields for story context
+  const [storytellerName, setStorytellerName] = useState('');
+  const [storytellerEmail, setStorytellerEmail] = useState('');
+  const [ageAtEvents, setAgeAtEvents] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
 
-  // Available voices with Argentine names - properly gender-matched to OpenAI voices
-  const voices = [
-    { id: 'nova', name: 'Carmen', gender: 'female', description: 'Voz femenina joven y vibrante' },
-    { id: 'onyx', name: 'Diego', gender: 'male', description: 'Voz masculina profunda y confiable' },
-    { id: 'shimmer', name: 'Alfonsina', gender: 'female', description: 'Voz femenina cálida y melodiosa' },
-    { id: 'echo', name: 'Mateo', gender: 'male', description: 'Voz masculina clara y resonante' }
-  ];
+  // Audio segment storage for story parts only (excluding info gathering)
+  const [storyAudioSegments, setStoryAudioSegments] = useState<Blob[]>([]);
+  const [storyEmailSent, setStoryEmailSent] = useState(false);
+  const [showDownloadOffer, setShowDownloadOffer] = useState(false);
+  const [isReturningUser, setIsReturningUser] = useState(false);
 
-  // Helper function to add debug information (console only)
-  const addDebugInfo = (message: string) => {
-    const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-    const debugMessage = `[MEMORIAS-AI ${timestamp}] ${message}`;
-    console.log(debugMessage);
-  };
-
-  // Function to play text as speech
-  const playTextAsSlowly = async (text: string) => {
-    try {
-      setIsPlayingTTS(true);
-      addDebugInfo(`Starting TTS for text: ${text.substring(0, 50)}...`);
-
-      // Stop any currently playing audio
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
-
-      // Call our TTS API
-      const response = await fetch('/api/text-to-speech', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: text,
-          voice: selectedVoice,  // Use the selected voice
-          speed: 0.8       // Slower for clear Argentine Spanish pronunciation
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`TTS API error: ${response.status}`);
-      }
-
-      // Create audio from the response
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      setCurrentAudio(audio);
-
-      // Play the audio
-      audio.onended = () => {
-        setIsPlayingTTS(false);
-        URL.revokeObjectURL(audioUrl);
-        setCurrentAudio(null);
-        addDebugInfo('TTS playback completed');
-      };
-
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsPlayingTTS(false);
-        URL.revokeObjectURL(audioUrl);
-        setCurrentAudio(null);
-      };
-
-      await audio.play();
-      addDebugInfo('TTS playback started');
-
-    } catch (error) {
-      console.error('Error playing text as speech:', error);
-      setIsPlayingTTS(false);
-      setCurrentAudio(null);
-      addDebugInfo(`TTS error: ${error}`);
-    }
-  };
-
-  // Function to play a voice sample for a specific voice (used for voice selection)
-  const playVoiceSample = async (voiceId: string, voiceName: string) => {
-    try {
-      setIsPlayingTTS(true);
-      addDebugInfo(`Playing voice sample for ${voiceName} (${voiceId})`);
-
-      // Call our TTS API with the specific voice ID
-      const response = await fetch('/api/text-to-speech', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: `¡Hola! Soy ${voiceName}, tu guía. Estoy aquí para ayudarte a contar tu historia.`,
-          voice: voiceId,  // Use the specific voice ID passed to this function
-          speed: 0.8       // Slower for clear Argentine Spanish pronunciation
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`TTS API error: ${response.status}`);
-      }
-
-      // Create audio from the response
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      setCurrentAudio(audio);
-
-      // Play the audio
-      audio.onended = () => {
-        setIsPlayingTTS(false);
-        URL.revokeObjectURL(audioUrl);
-        setCurrentAudio(null);
-        addDebugInfo(`Voice sample for ${voiceName} completed`);
-      };
-
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsPlayingTTS(false);
-        URL.revokeObjectURL(audioUrl);
-        setCurrentAudio(null);
-      };
-
-      await audio.play();
-      addDebugInfo(`Voice sample for ${voiceName} started playing`);
-
-    } catch (error) {
-      console.error('Error playing voice sample:', error);
-      setIsPlayingTTS(false);
-      setCurrentAudio(null);
-      addDebugInfo(`Voice sample error: ${error}`);
-    }
-  };
-
-  // Function to convert audio to WAV format using Web Audio API
-  const convertToWav = async (audioBlob: Blob): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const arrayBuffer = reader.result as ArrayBuffer;
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          
-          // Convert to WAV
-          const wavBuffer = audioBufferToWav(audioBuffer);
-          const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-          
-          audioContext.close();
-          resolve(wavBlob);
-        } catch (error) {
-          audioContext.close();
-          reject(error);
+  // Initialize agent memory with best practices
+  useEffect(() => {
+    const initializeAgent = async () => {
+      try {
+        await MemoryManager.initializeAgentBestPractices('MemoriasAI');
+        console.log('Agent best practices initialized');
+        
+        // Start the conversation automatically
+        if (conversationPhase === 'info_gathering' && !currentAgentMessage) {
+          await startInfoGathering();
         }
-      };
-      reader.onerror = () => reject(new Error('Failed to read audio file'));
-      reader.readAsArrayBuffer(audioBlob);
-    });
-  };
-
-  // Helper function to convert AudioBuffer to WAV format
-  const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
-    const length = buffer.length;
-    const numberOfChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
-    const view = new DataView(arrayBuffer);
-    
-    // WAV header
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
+      } catch (error) {
+        console.error('Error initializing agent:', error);
       }
     };
     
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length * numberOfChannels * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numberOfChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numberOfChannels * 2, true);
-    view.setUint16(32, numberOfChannels * 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, length * numberOfChannels * 2, true);
+    initializeAgent();
+  }, []);
+
+  // Helper function to get correct file extension based on MIME type
+  const getFileExtension = (mimeType: string): string => {
+    const mimeToExt: { [key: string]: string } = {
+      'audio/webm': 'webm',
+      'audio/mp4': 'm4a',
+      'audio/ogg': 'ogg',
+      'audio/wav': 'wav',
+      'audio/mpeg': 'mp3',
+      'audio/mp3': 'mp3'
+    };
     
-    // Audio data
-    let offset = 44;
-    for (let i = 0; i < length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample * 0x7FFF, true);
-        offset += 2;
-      }
-    }
+    // Extract base mime type (remove codec info)
+    const baseMimeType = mimeType.split(';')[0];
+    return mimeToExt[baseMimeType] || 'webm'; // default to webm
+  };
+
+  // Function to concatenate story audio segments
+  const createCombinedStoryAudio = (): Blob | null => {
+    if (storyAudioSegments.length === 0) return null;
     
-    return arrayBuffer;
+    // Combine all story audio segments
+    const combinedBlob = new Blob(storyAudioSegments, { type: audioMimeType });
+    console.log(`Combined audio: ${storyAudioSegments.length} segments, total size: ${combinedBlob.size} bytes`);
+    return combinedBlob;
   };
 
   // Set body styles when component mounts
@@ -265,282 +108,40 @@ export default function MemoriasAIPage() {
     };
   }, []);
 
-  // New story management functions
-  const startNewStory = async () => {
-    setStoryInProgress(true);
-    setCurrentStory('');
-    setAudioSegments([]); // Reset audio segments for new story
-    setStoryTitle(''); // Reset story title
-    
-    // Reset discard tracking
-    setLastRecordingTranscription('');
-    setLastRecordingAudio(null);
-    setCanDiscardLast(false);
-    
-    // Reset questions tracking
-    setQuestionsAsked([]);
-    
-    const welcomeMessage = 'Perfecto. Presiona "Grabar" para comenzar tu historia.';
-    setAiEncouragement(welcomeMessage);
-    setStoryComplete(false);
-    setTranscribedText(null);
-    setGeneratedStory(null);
-    setAudioURL(null);
-    
-    // Don't auto-play - let the user start recording when ready
-  };
-
-  const finishCurrentStory = async () => {
-    if (currentStory.trim()) {
-      setStoryComplete(true);
-      setStoryInProgress(false);
-      
-      // Generate final encouragement
-      const finalMessage = await generateFinalEncouragement(currentStory);
-      setAiEncouragement(finalMessage);
-      
-      // Format the final story nicely using AI
-      const formattedStory = await formatStoryWithAI(currentStory);
-      setGeneratedStory(formattedStory);
-      
-      // Play the final encouragement
-      setTimeout(() => playTextAsSlowly(finalMessage), 500);
-    }
-  };
-
-  const formatStoryForDisplay = (story: string) => {
-    // Split story by double newlines (paragraph breaks) first
-    const paragraphs = story.split(/\n\n+/).filter(p => p.trim().length > 0);
-    
-    // Return JSX with proper paragraph breaks
-    return paragraphs.map((paragraph, index) => (
-      <p key={index} style={{ marginBottom: '1rem' }}>
-        {paragraph.trim()}
-      </p>
-    ));
-  };
-
-  const formatStoryWithAI = async (story: string): Promise<string> => {
-    try {
-      const response = await fetch('/api/agents/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          story: story,
-          type: 'format_story'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return result.formattedStory || story;
-      }
-    } catch (error) {
-      console.error('Error formatting story:', error);
-    }
-
-    // Fallback: basic paragraph formatting
-    return story.split(/[.!?]+\s+/).filter(sentence => sentence.trim().length > 0)
-      .map(sentence => sentence.trim())
-      .join('. ') + (story.endsWith('.') ? '' : '.');
-  };
-
-  const generateFinalEncouragement = async (story: string): Promise<string> => {
-    try {
-      // Use OpenAI to generate a nice closing message
-      const response = await fetch('/api/agents/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          story: story,
-          type: 'final_encouragement'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return result.message;
-      }
-    } catch (error) {
-      console.error('Error generating final encouragement:', error);
-    }
-
-    // Fallback message
-    return 'Tu historia está lista. ¡Quedó muy buena!';
-  };
-
-  const integrateDetailsIntoStory = async (story: string, newDetails: string, detailType: string): Promise<string> => {
-    try {
-      const response = await fetch('/api/agents/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          story: story,
-          newDetails: newDetails,
-          detailType: detailType,
-          type: 'integrate_details'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return result.integratedStory || `${story} ${newDetails}`;
-      }
-    } catch (error) {
-      console.error('Error integrating details:', error);
-    }
-
-    // Fallback: simple append with context
-    const contextualIntegration = (() => {
-      switch (detailType) {
-        case 'fecha/edad':
-          return `${story} Esto pasó cuando tenía ${newDetails}.`;
-        case 'lugar':
-          return `${story} Todo esto ocurrió en ${newDetails}.`;
-        case 'personas':
-          return `${story} En esa ocasión estaba con ${newDetails}.`;
-        default:
-          return `${story} ${newDetails}`;
-      }
-    })();
-
-    return contextualIntegration;
-  };
-
-  const processStorySegment = async (newTranscription: string) => {
-    try {
-      // Check if we're waiting for details to be added
-      if (isWaitingForDetails && pendingDetailsType) {
-        // Integrate the new details into the existing story
-        const integratedStory = await integrateDetailsIntoStory(currentStory, newTranscription, pendingDetailsType);
-        setCurrentStory(integratedStory);
-        
-        // Reset detail-waiting state
-        setIsWaitingForDetails(false);
-        setPendingDetailsType(null);
-        setNeedsDetailsPrompt(false);
-        
-        // Generate normal encouragement
-        const encouragement = await generateEncouragement(integratedStory);
-        setAiEncouragement(encouragement);
-        setTimeout(() => playTextAsSlowly(encouragement), 500);
-        
-        addDebugInfo(`Details integrated. Story length: ${integratedStory.length} characters`);
+  const startRecording = async () => {
+    // For storytelling phase, ensure we have all required info
+    if (conversationPhase === 'storytelling') {
+      if (!storytellerName.trim() || !ageAtEvents.trim() || !eventLocation.trim()) {
+        alert('Faltan datos del narrador. Por favor complete la información primero.');
         return;
       }
-      
-      // Normal story segment processing - each new recording becomes a new paragraph
-      const updatedStory = currentStory ? `${currentStory}\n\n${newTranscription}` : newTranscription;
-      setCurrentStory(updatedStory);
-      
-      // Set story title from first segment if not already set
-      if (!storyTitle && !currentStory) {
-        const title = generateStoryTitle(newTranscription);
-        setStoryTitle(title);
-        addDebugInfo(`Story title set: ${title}`);
-      }
-      
-      // Generate AI encouragement and prompting
-      const encouragement = await generateEncouragement(updatedStory);
-      setAiEncouragement(encouragement);
-      
-      // Play the encouragement message
-      setTimeout(() => playTextAsSlowly(encouragement), 500);
-      
-      addDebugInfo(`Story updated. Length: ${updatedStory.length} characters`);
-    } catch (error) {
-      console.error('Error processing story segment:', error);
-      const fallbackMessage = 'Perfecto. Continuá cuando estés listo.';
-      setAiEncouragement(fallbackMessage);
-      setTimeout(() => playTextAsSlowly(fallbackMessage), 500);
     }
-  };
-
-  const generateEncouragement = async (story: string): Promise<string> => {
-    try {
-      addDebugInfo(`Analyzing complete story for encouragement. Story length: ${story.length} chars`);
-      console.log('Full story being analyzed:', story);
-      console.log('Questions already asked:', questionsAsked);
-      
-      // Use a simple AI call to generate encouragement and prompting questions
-      const response = await fetch('/api/agents/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          story: story,
-          type: 'encouragement',
-          questionsAsked: questionsAsked // Pass previously asked questions
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        // If the AI asked a question, track it to avoid repetition
-        if (result.questionAsked) {
-          setQuestionsAsked(prev => [...prev, result.questionAsked]);
-        }
-        
-        return result.message;
-      }
-    } catch (error) {
-      console.error('Error generating encouragement:', error);
-    }
-
-    // Fallback encouragement messages
-    const fallbackMessages = [
-      '¿Qué pasó después?',
-      '¿Podés contarme más detalles?',
-      '¿Había alguien más ahí?',
-      '¿Dónde fue esto?',
-      'Perfecto. Te escucho.',
-      'Interesante. Continuá.'
-    ];
     
-    return fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
-  };
-
-  const startRecording = async () => {
     // Reset states
     setAudioChunks([]);
     setAudioURL(null);
-    setTranscribedText(null);
-    setGeneratedStory(null);
+    if (conversationPhase === 'storytelling') {
+      setTranscribedText(null); // Only reset transcription for storytelling
+    }
     
     try {
-      addDebugInfo("Starting recording process...");
-      
-      // Check for browser compatibility
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Browser does not support audio recording");
-      }
-      
       // Request microphone access
-      addDebugInfo("Requesting microphone access...");
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          channelCount: 1,
-          sampleRate: 44100,
-          sampleSize: 16
-        }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       // Create a local array to store audio chunks without relying on React state
       let localAudioChunks: Blob[] = [];
-        // Specify audio MIME type options that are compatible with Whisper API
+      
+      // Specify audio MIME type options that are compatible with Whisper API
       let options = {};
+      
       // Try different MIME types that are supported by both the browser and Whisper API
-      // Prioritize formats that Whisper definitely supports
+      // Prioritize MP3 as it's more compressed than WAV
       const mimeTypes = [
-        'audio/wav',     // Whisper's most reliable format
-        'audio/mp4',     // Good compatibility 
-        'audio/mpeg',    // MP3 alternative
-        'audio/webm;codecs=pcm',  // PCM in WebM container
-        'audio/ogg;codecs=opus',   // Good compression
-        'audio/webm;codecs=opus',  // Good compression and quality
-        'audio/mp3',     // Common but might have browser support issues
-        'audio/webm',    // Fallback webm
-        'audio/ogg'      // Fallback ogg
+        'audio/mp3',
+        'audio/mpeg', 
+        'audio/ogg',
+        'audio/wav',  // WAV is less compressed but widely supported
+        'audio/webm'  // Often supported but with codec issues
       ];
       
       // Find the first supported MIME type
@@ -549,22 +150,26 @@ export default function MemoriasAIPage() {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           options = { mimeType };
           selectedMimeType = mimeType;
-          addDebugInfo(`Using MIME type: ${mimeType}`);
+          console.log(`Using MIME type: ${mimeType}`);
           break;
         }
       }
       
       // Fallback if none of our preferred types are supported
       if (!selectedMimeType) {
-        addDebugInfo("No preferred MIME types supported, using browser default");
+        console.log("No preferred MIME types supported, using browser default");
+        selectedMimeType = 'audio/webm'; // reasonable default
       }
       
       const recorder = new MediaRecorder(stream, options);
       
+      // Store the actual MIME type for proper file naming
+      setAudioMimeType(recorder.mimeType || selectedMimeType);
+      
       // Set up event handlers to collect audio data
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-          addDebugInfo(`Received audio chunk: ${event.data.size} bytes`);
+          console.log(`Received audio chunk: ${event.data.size} bytes`);
           localAudioChunks.push(event.data);
           // Also update React state for UI updates
           setAudioChunks(chunks => [...chunks, event.data]);
@@ -580,100 +185,78 @@ export default function MemoriasAIPage() {
           mimeType = mimeType.split(';')[0];
         }
         
-        addDebugInfo(`Recording stopped, collected ${localAudioChunks.length} chunks`);
-        console.log("RECORDING STOPPED - Audio capture details:", {
-          chunksCollected: localAudioChunks.length,
-          mimeType: mimeType,
-          recorderMimeType: recorder.mimeType,
-          recorderState: recorder.state
-        });
+        console.log(`Recording stopped, collected ${localAudioChunks.length} chunks`);
         
         // Make sure we have data - use local array instead of state
         if (localAudioChunks.length === 0) {
-          console.error("RECORDING ERROR - No audio data captured!");
-          addDebugInfo("ERROR: No audio chunks captured");
-          setTranscribedText("Error: No se grabó audio. Por favor, intente nuevamente.");
+          console.error("No audio data captured!");
+          setTranscribedText("No recorded narration");
           return;
         }
         
-        // Log each chunk details
-        localAudioChunks.forEach((chunk, index) => {
-          console.log(`Chunk ${index}:`, {
-            size: chunk.size,
-            type: chunk.type
-          });
-        });
+        // Check total audio size - if too small, likely just silence
+        const totalSize = localAudioChunks.reduce((sum, chunk) => sum + chunk.size, 0);
+        console.log("Audio chunks captured:", localAudioChunks.length, 
+          "Total size:", totalSize, "bytes");
+          
+        if (totalSize < 1000) { // Less than 1KB is likely just headers/silence
+          console.warn("Audio data too small, likely silence or no meaningful content");
+          setTranscribedText("No recorded narration");
+          return;
+        }
         
         // Create the audio blob with the actual type from the recorder
         // Use localAudioChunks instead of state variable
-        const originalBlob = new Blob(localAudioChunks, { type: mimeType });
-        addDebugInfo(`Creating audio blob with type: ${mimeType}, size: ${originalBlob.size} bytes`);
-        console.log("AUDIO BLOB CREATED:", {
-          size: originalBlob.size,
-          type: originalBlob.type,
-          mimeType: mimeType,
-          recorderMimeType: recorder.mimeType
-        });
+        const audioBlob = new Blob(localAudioChunks, { type: mimeType });
+        console.log(`Creating audio blob with type: ${mimeType}, size: ${audioBlob.size} bytes`);
         
-        // Check for minimum audio size
-        if (originalBlob.size < 1000) {
-          addDebugInfo(`WARNING: Audio blob very small (${originalBlob.size} bytes), may not contain meaningful audio`);
+        // Save audio segment if this is story content (not info gathering)
+        if (conversationPhase === 'storytelling') {
+          setStoryAudioSegments(prev => [...prev, audioBlob]);
+          console.log('Saved story audio segment');
         }
         
-        // Convert WebM to WAV if necessary for better Whisper compatibility
-        let audioBlob = originalBlob;
-        if (mimeType.includes('webm') || mimeType.includes('ogg')) {
-          addDebugInfo(`Converting ${mimeType} to WAV for better Whisper compatibility`);
-          try {
-            audioBlob = await convertToWav(originalBlob);
-            addDebugInfo(`Conversion successful: ${audioBlob.size} bytes WAV`);
-          } catch (conversionError) {
-            addDebugInfo(`Conversion failed: ${conversionError}, using original format`);
-            audioBlob = originalBlob; // Use original if conversion fails
-          }
-        }
-        
-        // Create URL for playback (use original for browser compatibility)
-        const url = URL.createObjectURL(originalBlob);
+        // Create URL for playback
+        const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
         
-        // Automatically process the recording
-        setRecordingCompleted(false);
-        
-        // Store the audio segment for later compilation
-        if (storyInProgress) {
-          setAudioSegments(prev => [...prev, audioBlob]);
-          addDebugInfo(`Stored audio segment ${audioSegments.length + 1} (${audioBlob.size} bytes)`);
+        try {
+          // Log the audio details before sending
+          console.log("Audio details:", {
+            type: audioBlob.type,
+            size: audioBlob.size,
+            chunks: localAudioChunks.length
+          });
+          
+          await processTranscription(audioBlob);
+        } catch (error) {
+          console.error("Error in transcription process:", error);
+          setTranscribedText("Error al transcribir. Por favor, intente nuevamente.");
         }
-        
-        // Process transcription immediately
-        await processTranscription(audioBlob);
-        addDebugInfo("Recording automatically processed");
       };
       
       // Start recording with smaller time slices for more frequent data capture
-      addDebugInfo("Starting MediaRecorder...");
+      console.log("Starting MediaRecorder...");
       try {
-        // Use a shorter time slice (100ms) to capture more chunks and ensure we get data
-        recorder.start(100);
-        addDebugInfo("MediaRecorder successfully started");
+        // Use a shorter time slice (200ms) to capture more chunks and ensure we get data
+        recorder.start(200);
+        console.log("MediaRecorder successfully started");
         
         setMediaRecorder(recorder);
         setRecording(true);
-        setRecordingStartTime(Date.now());
         
-        // Force additional data captures at regular intervals
-        const requestDataInterval = setInterval(() => {
+        console.log("Recording started with MediaRecorder:", {
+          state: recorder.state,
+          mimeType: recorder.mimeType
+        });
+        
+        // Force an additional data capture after a brief delay
+        setTimeout(() => {
           if (recorder.state === 'recording') {
-            addDebugInfo('Requesting periodic data capture');
+            console.log('Requesting additional data capture');
             recorder.requestData();
-          } else {
-            clearInterval(requestDataInterval);
           }
-        }, 1000); // Request data every second
-        
-        // Store the interval ID so we can clear it later
-        (recorder as any).dataInterval = requestDataInterval;
+        }, 500);
       } catch (recorderError) {
         console.error("Error starting MediaRecorder:", recorderError);
         alert("Error al iniciar la grabación. Por favor, intente nuevamente.");
@@ -683,16 +266,9 @@ export default function MemoriasAIPage() {
       alert("No se pudo acceder al micrófono. Por favor, asegúrese de que está conectado y que ha dado permiso para usarlo.");
     }
   };
+
   const stopRecording = () => {
-    if (mediaRecorder && recordingStartTime) {
-      const recordingDuration = Date.now() - recordingStartTime;
-      addDebugInfo(`Recording duration: ${recordingDuration}ms`);
-      
-      // Check for minimum recording duration (at least 1 second)
-      if (recordingDuration < 1000) {
-        addDebugInfo("WARNING: Recording too short, may not contain meaningful audio");
-      }
-      
+    if (mediaRecorder) {
       console.log(`Stopping recording. Current state: ${mediaRecorder.state}`);
       
       try {
@@ -712,13 +288,7 @@ export default function MemoriasAIPage() {
               console.log('Audio track stopped');
             });
             
-            // Clear the data request interval if it exists
-            if ((mediaRecorder as any).dataInterval) {
-              clearInterval((mediaRecorder as any).dataInterval);
-            }
-            
             setRecording(false);
-            setRecordingStartTime(null);
           }, 200);
         } else {
           console.log('MediaRecorder not in recording state, cannot stop');
@@ -734,66 +304,53 @@ export default function MemoriasAIPage() {
 
   const processTranscription = async (audioBlob: Blob) => {
     try {
-      addDebugInfo(`Processing audio blob: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
-      console.log("TRANSCRIPTION START - Audio blob details:", {
-        size: audioBlob.size,
-        type: audioBlob.type,
-        constructor: audioBlob.constructor.name
-      });
+      console.log("Processing audio blob:", audioBlob.size, "bytes", "type:", audioBlob.type);
       
       // Check if we have valid audio data
       if (!audioBlob || audioBlob.size === 0) {
-        const errorMsg = "No valid audio data to transcribe";
-        addDebugInfo(`ERROR: ${errorMsg}`);
-        throw new Error(errorMsg);
+        setTranscribedText("No recorded narration");
+        return;
       }
       
       setTranscribedText("Transcribiendo audio...");
       
-      // First check if we can reach our test API endpoint
+      // First try direct transcription using the whisper_transcribe function
       try {
-        addDebugInfo("Testing API endpoint availability...");
-        const testResponse = await fetch('/api/test-env');
-        const testData = await testResponse.json();
-        addDebugInfo(`API test result: ${JSON.stringify(testData)}`);
-      } catch (testError) {
-        addDebugInfo(`API test failed: ${testError}`);
+        console.log("Attempting direct transcription with Whisper API...");
+        
+        // Create a filename that indicates the format
+        const fileName = `recording-${Date.now()}.mp3`;
+        
+        // Call the transcription function directly
+        const result = await transcribeAudio(audioBlob, {
+          language: 'es',
+          model: 'whisper-1',
+          fileName: fileName
+        });
+        
+        console.log("Direct transcription successful:", result);
+        const formattedText = formatStoryText(result.text);
+        setTranscribedText(formattedText);
+        
+        return; // Exit early since direct transcription worked
+      } catch (directError) {
+        console.warn("Direct transcription failed, falling back to server API:", directError);
       }
       
-      // Use server API approach (client-side can't access OpenAI API key)
+      // Fallback to server API approach
       try {
-        addDebugInfo("Using server API for transcription...");
-        console.log("SERVER API - Starting transcription");
-        
-        // Create a File object for server handling
+        // Create a File object for more reliable server handling
         const timestamp = Date.now();
-        
-        // Determine the proper file extension based on the actual audio type
-        let fileExtension = 'mp3'; // default
-        let actualMimeType = audioBlob.type;
-        
-        if (actualMimeType.includes('webm')) {
-          fileExtension = 'webm';
-        } else if (actualMimeType.includes('ogg')) {
-          fileExtension = 'ogg';
-        } else if (actualMimeType.includes('wav')) {
-          fileExtension = 'wav';
-        } else if (actualMimeType.includes('mp4')) {
-          fileExtension = 'mp4';
-        }
-        
         const audioFile = new File(
           [audioBlob], 
-          `recording-${timestamp}.${fileExtension}`, 
-          { type: actualMimeType, lastModified: timestamp }
+          `recording-${timestamp}.mp3`, 
+          { type: 'audio/mp3', lastModified: timestamp }
         );
         
-        console.log("SERVER API - Created audio file:", {
+        console.log("Created audio file for server API:", {
           name: audioFile.name,
           size: audioFile.size,
-          type: audioFile.type,
-          originalBlobType: audioBlob.type,
-          detectedExtension: fileExtension
+          type: audioFile.type
         });
         
         // Set up form data with the File object
@@ -804,757 +361,773 @@ export default function MemoriasAIPage() {
         formData.append('originalType', audioBlob.type);
         formData.append('timestamp', timestamp.toString());
         
-        console.log("SERVER API - Sending audio to server-side API endpoint");
-        addDebugInfo("Sending to server API...");
+        console.log("Sending audio to server-side API endpoint");
         
         const response = await fetch('/api/transcribe-audio', {
           method: 'POST',
           body: formData,
         });
         
-        console.log("SERVER API - Response received:", {
-          ok: response.ok,
-          status: response.status,
-          statusText: response.statusText
-        });
-        
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("SERVER API - Server returned error:", errorData);
-          addDebugInfo(`Server error: ${JSON.stringify(errorData)}`);
+          console.error("Server returned error:", errorData);
           throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
         }
         
         const transcriptionResult = await response.json();
         const transcription = transcriptionResult.text;
         
-        console.log("SERVER API - Received transcription:", transcription);
-        addDebugInfo(`Server transcription successful: ${transcription.substring(0, 50)}...`);
-        setTranscribedText(transcription);
+        console.log("Received transcription:", transcription);
+        const formattedTranscription = formatStoryText(transcription);
+        setTranscribedText(formattedTranscription);
         
-        // Track this as the last recording for potential discard
-        setLastRecordingTranscription(transcription);
-        setLastRecordingAudio(audioBlob);
-        setCanDiscardLast(true);
-        
-        // Process the transcription based on current mode
-        if (storyInProgress) {
-          // Append to current story and generate encouragement
-          await processStorySegment(transcription);
-        } else {
-          // For standalone transcriptions, just show the transcribed text
-          // NEVER generate creative content or fabricate stories
-          setGeneratedStory(transcription.trim());
+        // Handle conversation flow based on current phase
+        if (conversationPhase === 'info_gathering' && awaitingUserResponse) {
+          await processInfoGatheringResponse(transcription);
+        } else if (conversationPhase === 'storytelling') {
+          await analyzeStoryAndRespond(transcription);
         }
       } catch (serverError) {
-        console.error("SERVER API - Transcription error:", serverError);
-        addDebugInfo(`Server API error: ${serverError}`);
+        console.error("Server API transcription error:", serverError);
         throw serverError; // Re-throw to be caught by the outer catch
       }
     } catch (error) {
-      console.error("TRANSCRIPTION ERROR - Error transcribing audio:", error);
-      addDebugInfo(`Transcription error: ${error}`);
-      setTranscribedText("Error al transcribir el audio. Por favor, intente nuevamente.");
-    }
-  };
-
-  // Function to generate story title from first segment
-  const generateStoryTitle = (story: string): string => {
-    if (!story) return 'Mi Historia';
-    
-    // Extract first 5-7 words for title
-    const words = story.trim().split(/\s+/).slice(0, 6).join(' ');
-    const title = words.charAt(0).toUpperCase() + words.slice(1);
-    
-    // Clean up title for filename (remove special characters)
-    return title.replace(/[^\w\s]/gi, '').trim() || 'Mi Historia';
-  };
-
-  // Function to download story as plain text
-  const downloadText = () => {
-    try {
-      const title = storyTitle || generateStoryTitle(currentStory);
-      const textContent = `${title}\n\n${currentStory}\n\n---\n\nHistoria grabada con Memorias-AI el ${new Date().toLocaleDateString('es-AR')}`;
+      console.error("Error transcribing audio:", error);
       
-      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      URL.revokeObjectURL(url);
-      addDebugInfo(`Downloaded text file: ${link.download}`);
-    } catch (error) {
-      console.error('Error downloading text file:', error);
-      addDebugInfo(`Error downloading text file: ${error}`);
-    }
-  };
-
-  // Function to combine audio segments and download as MP3
-  const downloadAudio = async () => {
-    try {
-      if (audioSegments.length === 0) {
-        addDebugInfo('No audio segments to download');
-        return;
-      }
-
-      addDebugInfo(`Combining ${audioSegments.length} audio segments...`);
-      
-      // Use Web Audio API to properly concatenate audio segments
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const combinedBuffers: AudioBuffer[] = [];
-      
-      // Decode all audio segments
-      for (let i = 0; i < audioSegments.length; i++) {
-        const arrayBuffer = await audioSegments[i].arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        combinedBuffers.push(audioBuffer);
-      }
-      
-      // Calculate total length
-      const totalLength = combinedBuffers.reduce((sum, buffer) => sum + buffer.length, 0);
-      const numberOfChannels = combinedBuffers[0]?.numberOfChannels || 1;
-      const sampleRate = combinedBuffers[0]?.sampleRate || 44100;
-      
-      // Create combined buffer
-      const combinedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
-      
-      // Copy all segments into the combined buffer
-      let offset = 0;
-      for (const buffer of combinedBuffers) {
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-          const channelData = buffer.getChannelData(channel);
-          combinedBuffer.getChannelData(channel).set(channelData, offset);
+      // Provide more specific error messages
+      let errorMessage = "No recorded narration";
+      if (error instanceof Error) {
+        if (error.message.includes("API key")) {
+          errorMessage = "Transcription service not configured";
+        } else if (error.message.includes("network") || error.message.includes("fetch")) {
+          errorMessage = "Network error - please check your connection";
+        } else if (error.message.includes("audio") || error.message.includes("format")) {
+          errorMessage = "Audio format not supported";
         }
-        offset += buffer.length;
       }
       
-      // Convert to WAV format
-      const wavBuffer = audioBufferToWav(combinedBuffer);
-      const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-      
-      const title = storyTitle || generateStoryTitle(currentStory);
-      const url = URL.createObjectURL(wavBlob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.wav`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      URL.revokeObjectURL(url);
-      addDebugInfo(`Downloaded audio: ${link.download}`);
-    } catch (error) {
-      console.error('Error downloading audio:', error);
-      addDebugInfo(`Error downloading audio: ${error}`);
+      setTranscribedText(errorMessage);
     }
   };
-
-  // REMOVED: generateRealStory and simulateStoryGeneration functions
-  // REMOVED: generateRealStory and simulateStoryGeneration functions
-  // These functions were generating creative/fabricated content which violates
-  // the core principle that MemoriasAI should NEVER invent or fabricate stories.
   
-  // Function to discard recording and start over
-  const discardRecording = () => {
-    setRecordingCompleted(false);
-    setPendingAudioBlob(null);
-    setAudioURL(null);
-    setTranscribedText('');
-    addDebugInfo("Recording discarded, ready to record again");
-  };
+  // Voice preview functionality
+  const previewVoice = async (voice: any) => {
+    try {
+      const previewText = `Hola, soy ${voice.name}. ${voice.description}`;
+      
+      // Call the API route instead of client-side function
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: previewText,
+          voice: voice.id,
+          speed: 0.9
+        }),
+      });
 
-  // Function to discard the last recording and transcription
-  const discardLastRecording = () => {
-    if (!canDiscardLast || !lastRecordingTranscription) return;
-    
-    // Remove the last transcription from the current story
-    if (storyInProgress && currentStory.includes(lastRecordingTranscription)) {
-      // Since each recording is a paragraph, find the last occurrence and remove it
-      const lastIndex = currentStory.lastIndexOf(lastRecordingTranscription);
-      if (lastIndex !== -1) {
-        // Remove the transcription and any preceding paragraph break
-        let updatedStory = currentStory.substring(0, lastIndex) + currentStory.substring(lastIndex + lastRecordingTranscription.length);
-        // Clean up trailing paragraph breaks
-        updatedStory = updatedStory.replace(/\n\n+$/, '').trim();
-        setCurrentStory(updatedStory);
+      if (!response.ok) {
+        throw new Error(`TTS API failed: ${response.status}`);
       }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+      
+      // Also select this voice
+      setSelectedVoice(voice.id);
+    } catch (error) {
+      console.error('Error previewing voice:', error);
+      // Fallback: just select the voice
+      setSelectedVoice(voice.id);
     }
-    
-    // Remove the last audio segment if it exists
-    if (lastRecordingAudio && audioSegments.length > 0) {
-      setAudioSegments(prev => prev.slice(0, -1));
-    }
-    
-    // Clear the transcription display
-    setTranscribedText('');
-    
-    // Reset last recording tracking
-    setLastRecordingTranscription('');
-    setLastRecordingAudio(null);
-    setCanDiscardLast(false);
-    
-    // Clear AI encouragement
-    setAiEncouragement('Grabación descartada. Presiona "Grabar" para continuar.');
-    
-    addDebugInfo("Last recording and transcription discarded");
   };
 
+  // Agent conversation functions
+  const speakAgentMessage = async (message: string) => {
+    setCurrentAgentMessage(message);
+    setIsAgentSpeaking(true);
+    
+    try {
+      // Call the API route instead of client-side function
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: message,
+          voice: selectedVoice,
+          speed: 0.9
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS API failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      audio.onended = () => {
+        setIsAgentSpeaking(false);
+        setAwaitingUserResponse(true);
+      };
+      
+      audio.play();
+    } catch (error) {
+      console.error('Error generating agent speech:', error);
+      setIsAgentSpeaking(false);
+      setAwaitingUserResponse(true);
+    }
+  };
+
+  const startInfoGathering = async () => {
+    setConversationPhase('info_gathering');
+    setInfoGatheringStep('name');
+    
+    const welcomeMessage = "¡Hola! Soy tu asistente de Memorias AI. Te voy a ayudar a grabar tu historia. Primero necesito conocerte mejor. ¿Podrías decirme tu nombre completo?";
+    await speakAgentMessage(welcomeMessage);
+  };
+
+  const processInfoGatheringResponse = async (transcription: string) => {
+    const lowerTranscription = transcription.toLowerCase().trim();
+    
+    switch (infoGatheringStep) {
+      case 'returning_user_check':
+        // Handle returning user response about what they want to change
+        if (lowerTranscription.includes('edad') || lowerTranscription.includes('cambiar edad')) {
+          setInfoGatheringStep('age');
+          const ageMessage = `Perfecto. ¿Qué edad tenías cuando ocurrieron los eventos de esta nueva historia?`;
+          await speakAgentMessage(ageMessage);
+        } else if (lowerTranscription.includes('lugar') || lowerTranscription.includes('cambiar lugar')) {
+          setInfoGatheringStep('location');
+          const locationMessage = `Perfecto. ¿En qué lugar ocurrieron los eventos de esta nueva historia?`;
+          await speakAgentMessage(locationMessage);
+        } else if (lowerTranscription.includes('ambos') || lowerTranscription.includes('los dos') || (lowerTranscription.includes('edad') && lowerTranscription.includes('lugar'))) {
+          setInfoGatheringStep('age');
+          const bothMessage = `Perfecto. Primero, ¿qué edad tenías cuando ocurrieron los eventos de esta nueva historia?`;
+          await speakAgentMessage(bothMessage);
+        } else {
+          // User wants to keep the same data
+          setInfoGatheringStep('completed');
+          setConversationPhase('storytelling');
+          const readyMessage = `Perfecto, ${storytellerName}. Mantenemos tu edad de ${ageAtEvents} y el lugar ${eventLocation}. Ahora estoy listo para escuchar tu nueva historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
+          await speakAgentMessage(readyMessage);
+          setAwaitingUserResponse(false);
+        }
+        break;
+        
+      case 'name':
+        // Extract name from transcription (simple approach)
+        setStorytellerName(transcription.trim());
+        setInfoGatheringStep('age');
+        
+        const ageMessage = `Perfecto, ${transcription.trim()}. Ahora, ¿qué edad tenías cuando ocurrieron los eventos de esta historia que me vas a contar?`;
+        await speakAgentMessage(ageMessage);
+        break;
+        
+      case 'age':
+        setAgeAtEvents(transcription.trim());
+        
+        // If this is a returning user who only wanted to change age, go to storytelling
+        if (isReturningUser) {
+          setInfoGatheringStep('completed');
+          setConversationPhase('storytelling');
+          const readyMessage = `Perfecto, ${storytellerName}. Ahora con tu nueva edad de ${transcription.trim()} y el lugar ${eventLocation}. Estoy listo para escuchar tu nueva historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
+          await speakAgentMessage(readyMessage);
+          setAwaitingUserResponse(false);
+        } else {
+          setInfoGatheringStep('location');
+          const locationMessage = `Muy bien. ¿En qué lugar ocurrieron estos eventos que me vas a narrar?`;
+          await speakAgentMessage(locationMessage);
+        }
+        break;
+        
+      case 'location':
+        setEventLocation(transcription.trim());
+        setInfoGatheringStep('completed');
+        setConversationPhase('storytelling');
+        
+        const readyMessage = `Perfecto, ${storytellerName}. Ya tengo toda la información. Ahora estoy listo para escuchar tu historia sobre cuando tenías ${ageAtEvents} en ${transcription.trim()}. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme tu historia.`;
+        await speakAgentMessage(readyMessage);
+        setAwaitingUserResponse(false);
+        break;
+    }
+  };
+
+  const analyzeStoryAndRespond = async (storyText: string) => {
+    if (conversationPhase !== 'storytelling') return;
+    
+    // Add this segment to story segments
+    setStorySegments(prev => [...prev, storyText]);
+    
+    // Use a simple timer to detect when user has paused
+    if (silenceTimer.current) {
+      clearTimeout(silenceTimer.current);
+    }
+    
+    silenceTimer.current = setTimeout(async () => {
+      await generateContextualQuestion(storyText);
+    }, 3000); // Wait 3 seconds after transcription before asking question
+  };
+
+  const generateContextualQuestion = async (currentStory: string) => {
+    if (isAgentSpeaking || awaitingUserResponse) return;
+    
+    try {
+      // Get memory context for better questioning
+      const memoryContext = MemoryManager.generateContextForAgent('MemoriasAI');
+      
+      const response = await fetch('/api/agents/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          story: currentStory,
+          type: 'encouragement',
+          questionsAsked: questionsAsked,
+          memoryContext: memoryContext
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.message) {
+          setQuestionsAsked(prev => [...prev, data.message]);
+          await speakAgentMessage(data.message);
+        }
+      }
+    } catch (error) {
+      console.error('Error generating contextual question:', error);
+    }
+  };
+
+  const sendStoryByEmail = async () => {
+    // Validate required fields
+    if (!transcribedText) {
+      alert('No hay historia transcrita para enviar.');
+      return;
+    }
+    
+    if (!storytellerName) {
+      alert('Falta el nombre del narrador. Por favor complete la información primero.');
+      return;
+    }
+    
+    if (!storytellerEmail) {
+      alert('Por favor, ingrese su dirección de email.');
+      return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(storytellerEmail)) {
+      alert('Por favor, ingrese una dirección de email válida.');
+      return;
+    }
+    
+    setIsEmailSending(true);
+    
+    try {
+      const emailContent = `Hola ${storytellerName},
+
+Aquí está tu historia transcrita de Memorias AI:
+
+---
+
+${formatStoryText(transcribedText)}
+
+---
+
+Contexto de la historia:
+- Narrador: ${storytellerName}
+- Email: ${storytellerEmail}
+- Edad durante los eventos: ${ageAtEvents}
+- Lugar donde ocurrieron: ${eventLocation}
+- Fecha de grabación: ${new Date().toLocaleDateString('es-ES')}
+
+Esta historia fue capturada y transcrita usando Memorias AI.
+
+Saludos,
+El equipo de Memorias AI`;
+
+      // Formspree endpoint - you'll need to replace this with your actual endpoint
+      const formspreeEndpoint = process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || 'https://formspree.io/f/YOUR_FORM_ID';
+      
+      const response = await fetch(formspreeEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: storytellerEmail,
+          subject: 'Tu Historia de Memorias AI',
+          message: emailContent,
+          _replyto: storytellerEmail,
+          _subject: 'Tu Historia de Memorias AI'
+        }),
+      });
+
+      if (response.ok) {
+        setStoryEmailSent(true);
+        setShowDownloadOffer(true);
+        // Don't alert immediately, let the agent speak
+        if (storyAudioSegments.length > 0) {
+          speakAgentMessage("Te envié la historia por email. ¿Te gustaría descargar tu audio, o puedes hacer clic en 'Nueva Historia' para empezar una nueva?");
+        } else {
+          alert(`¡Historia enviada exitosamente a ${storytellerEmail}!`);
+        }
+      } else {
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('Error al enviar el email. Por favor, intente nuevamente.');
+    } finally {
+      setIsEmailSending(false);
+    }
+  };
+
+  const downloadStoryAudio = () => {
+    const combinedAudio = createCombinedStoryAudio();
+    if (!combinedAudio) {
+      alert('No hay audio de historia disponible para descargar.');
+      return;
+    }
+    
+    const url = URL.createObjectURL(combinedAudio);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mi-historia-${new Date().toISOString().split('T')[0]}.${getFileExtension(audioMimeType)}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    setShowDownloadOffer(false);
+    alert('¡Audio descargado exitosamente!');
+  };
+
+  const generateAgentQuestion = async () => {
+    if (!transcribedText) return;
+    
+    setIsGeneratingQuestion(true);
+    
+    try {
+      // Call the feedback API to get a question
+      const response = await fetch('/api/agents/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          story: transcribedText,
+          type: 'encouragement',
+          questionsAsked: questionsAsked
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.message) {
+          setAgentQuestion(data.message);
+          setQuestionsAsked(prev => [...prev, data.message]);
+          
+          // Generate audio for the question using selected voice
+          try {
+            // Call the API route instead of client-side function
+            const ttsResponse = await fetch('/api/text-to-speech', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                text: data.message,
+                voice: selectedVoice,
+                speed: 0.9
+              }),
+            });
+
+            if (ttsResponse.ok) {
+              const audioBlob = await ttsResponse.blob();
+              const audioUrl = URL.createObjectURL(audioBlob);
+              setAgentAudio(audioUrl);
+            } else {
+              throw new Error(`TTS API failed: ${ttsResponse.status}`);
+            }
+          } catch (audioError) {
+            console.error('Error generating speech:', audioError);
+            // Question will still be displayed as text
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error generating question:', error);
+    } finally {
+      setIsGeneratingQuestion(false);
+    }
+  };
+
+  // Function to reset conversation for a new story
+  const startNewStory = async () => {
+    // Reset conversation states
+    setConversationPhase('info_gathering');
+    setCurrentAgentMessage('');
+    setIsAgentSpeaking(false);
+    setAwaitingUserResponse(false);
+    setInfoGatheringStep('returning_user_check');
+    setIsReturningUser(true);
+    
+    // Reset story data
+    setTranscribedText(null);
+    setStorySegments([]);
+    setStoryAudioSegments([]);
+    setQuestionsAsked([]);
+    setAgentQuestion(null);
+    setAgentAudio(null);
+    
+    // Reset recording states
+    setRecording(false);
+    setAudioURL(null);
+    setAudioChunks([]);
+    
+    // Reset email states but keep email and user info (we'll ask what to change)
+    setStoryEmailSent(false);
+    setShowDownloadOffer(false);
+    setIsEmailSending(false);
+    
+    // Clear any existing timers
+    if (silenceTimer.current) {
+      clearTimeout(silenceTimer.current);
+      silenceTimer.current = null;
+    }
+    
+    console.log('Conversation reset for new story');
+    
+    // Start the returning user flow
+    const returningMessage = `Estoy listo para grabar otra historia, así que mantengo tu nombre ${storytellerName}. En la historia que me vas a contar, ¿quieres cambiar tu edad o el lugar, o mantener los mismos datos?`;
+    await speakAgentMessage(returningMessage);
+  };
+  
   return (
     <div className={styles.container} style={{
       background: 'rgba(34, 40, 49, 0.98)',
-      borderRadius: 16,
-      boxShadow: '0 6px 24px rgba(0,0,0,0.2)',
-      maxWidth: '800px',
+      borderRadius: '15px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+      maxWidth: '900px',
+      width: '95%',
       margin: '1rem auto',
-      padding: '1.2rem'
+      padding: '1.5rem',
+      minHeight: '100vh',
+      boxSizing: 'border-box'
     }}>
-      <header style={{ marginBottom: '1rem', textAlign: 'center' }}>
+      <header style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
         <h1 style={{ 
           color: '#ffb347', 
-          fontSize: '1.8rem',
-          marginBottom: '0.2rem'
+          fontSize: 'clamp(1.8rem, 5vw, 2.5rem)',
+          marginBottom: '0.5rem',
+          lineHeight: '1.2'
         }}>Memorias-AI</h1>
-        <p style={{ color: '#ccc', marginBottom: '0.6rem', fontSize: '0.85rem' }}>
-          Capturando memorias para compartir con la familia...
-        </p>
-        
-        {/* Voice Selection */}
-        <div style={{ 
-          background: 'rgba(0,0,0,0.2)', 
-          padding: '0.6rem', 
-          borderRadius: '6px',
-          marginBottom: '0.6rem',
-          border: '1px solid rgba(255,179,71,0.3)'
+        <p style={{ 
+          color: '#ccc', 
+          marginBottom: '1rem',
+          fontSize: 'clamp(0.9rem, 3vw, 1rem)',
+          padding: '0 1rem'
         }}>
-          <h3 style={{ color: '#ffb347', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
-            🎙️ Elegí tu guía
-          </h3>
-          <div style={{ 
-            display: 'flex', 
-            gap: '0.4rem',
-            justifyContent: 'center',
-            flexWrap: 'wrap'
-          }}>
-            {voices.map((voice) => (
-              <div
-                key={voice.id}
-                onClick={() => {
-                  if (isPlayingTTS && selectedVoice === voice.id) {
-                    // If this voice is currently playing, stop it
-                    if (currentAudio) {
-                      currentAudio.pause();
-                      setIsPlayingTTS(false);
-                      setCurrentAudio(null);
-                    }
-                  } else {
-                    // Stop any currently playing audio first
-                    if (currentAudio) {
-                      currentAudio.pause();
-                      setIsPlayingTTS(false);
-                      setCurrentAudio(null);
-                    }
-                    
-                    // Select this voice and play sample with the specific voice
-                    setSelectedVoice(voice.id);
-                    
-                    // Play sample with THIS specific voice (not the selectedVoice state)
-                    playVoiceSample(voice.id, voice.name);
-                  }
-                }}
-                style={{
-                  background: selectedVoice === voice.id 
-                    ? 'rgba(255,179,71,0.3)' 
-                    : 'rgba(255,255,255,0.1)',
-                  border: selectedVoice === voice.id 
-                    ? '2px solid #ffb347' 
-                    : '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '4px',
-                  padding: '0.4rem 0.8rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  textAlign: 'center',
-                  opacity: isPlayingTTS && selectedVoice !== voice.id ? 0.6 : 1,
-                  minWidth: '100px'
-                }}
-              >
-                <div style={{ 
-                  color: selectedVoice === voice.id ? '#ffb347' : '#fff',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.3rem',
-                  fontSize: '0.85rem'
-                }}>
-                  {voice.gender === 'female' ? '👩' : '👨'} {voice.name}
-                  {isPlayingTTS && selectedVoice === voice.id && (
-                    <span style={{ fontSize: '0.7rem', color: '#ffb347' }}>🔊</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p style={{ 
-            color: '#ccc', 
-            fontSize: '0.8rem', 
-            marginTop: '0.6rem',
-            fontStyle: 'italic'
-          }}>
-            {isPlayingTTS ? (
-              <>🔊 Reproduciendo muestra de <span style={{ color: '#ffb347', fontWeight: 'bold' }}>
-                {voices.find(v => v.id === selectedVoice)?.name}
-              </span> • Hacé clic para parar</>
-            ) : (
-              <>Guía seleccionado: <span style={{ color: '#ffb347', fontWeight: 'bold' }}>
-                {voices.find(v => v.id === selectedVoice)?.name}
-              </span> • Hacé clic en otros para escuchar</>
-            )}
-          </p>
-        </div>
+          Capturando historias en el acento español argentino
+        </p>
       </header>
 
-      <main style={{ width: '100%' }}>
-        {!storyInProgress && !storyComplete && (
-          <section className={styles.section} style={{ textAlign: 'center' }}>
-            <h2 className={styles.sectionTitle}>Comenzar Nueva Historia</h2>
-            <p style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
-              ¿Tienes una memoria especial que te gustaría compartir? Te ayudo a contarla paso a paso.
-            </p>
-            
-            <button 
-              onClick={startNewStory}
-              className={styles.button}
-              style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                fontSize: '0.95rem',
-                padding: '10px 20px'
+      {/* Voice Selection */}
+      <section className={styles.section} style={{ marginBottom: '1.5rem' }}>
+        <h2 className={styles.sectionTitle} style={{ fontSize: 'clamp(1.2rem, 4vw, 1.5rem)' }}>Seleccionar Voz del Asistente</h2>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '0.75rem', 
+          marginBottom: '1rem',
+          padding: '0 0.5rem'
+        }}>
+          {getArgentineVoices().map((voice) => (
+            <button
+              key={voice.id}
+              onClick={() => previewVoice(voice)}
+              className={`${styles.voiceButtonSmall} ${selectedVoice === voice.id ? styles.voiceSelected : ''}`}
+              style={{
+                backgroundColor: selectedVoice === voice.id ? '#ffb347' : 'rgba(255, 255, 255, 0.1)',
+                color: selectedVoice === voice.id ? '#000' : '#fff',
+                border: `2px solid ${selectedVoice === voice.id ? '#ffb347' : 'rgba(255, 255, 255, 0.2)'}`,
+                borderRadius: '15px',
+                padding: '0.75rem 0.5rem',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                fontSize: 'clamp(0.8rem, 3vw, 0.9rem)',
+                minHeight: '60px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center'
               }}
             >
-              🌟 Comenzar a Contar Mi Historia
+              <span style={{ marginBottom: '0.25rem', fontSize: '1.2rem' }}>
+                {voice.gender === 'male' ? '♂️' : '♀️'}
+              </span>
+              <span style={{ fontWeight: 'bold' }}>{voice.name}</span>
             </button>
-          </section>
-        )}
+          ))}
+        </div>
+        <p style={{ 
+          textAlign: 'center', 
+          fontSize: 'clamp(0.7rem, 2.5vw, 0.8rem)', 
+          color: '#ccc',
+          padding: '0 1rem'
+        }}>
+          Toca un agente para escuchar su voz y seleccionarlo
+        </p>
+      </section>
 
-        {storyInProgress && (
-          <>
-            <section className={styles.section} style={{ textAlign: 'center' }}>
-              <h2 className={styles.sectionTitle}>Contando Tu Historia</h2>
-              
-              <div style={{ 
-                background: 'rgba(0,0,0,0.2)', 
-                padding: '0.8rem', 
-                borderRadius: '8px',
-                marginBottom: '1rem',
-                border: '1px solid rgba(255,179,71,0.3)'
-              }}>
-                {aiEncouragement && (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <p style={{ 
-                        color: '#ffb347', 
-                        fontStyle: 'italic',
-                        marginBottom: '0',
-                        fontSize: '0.95rem',
-                        flex: 1
-                      }}>
-                        💭 {aiEncouragement}
-                      </p>
-                      <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                        <button
-                          onClick={() => playTextAsSlowly(aiEncouragement)}
-                          disabled={isPlayingTTS}
-                          style={{
-                            background: isPlayingTTS ? 'rgba(255,179,71,0.3)' : 'rgba(255,179,71,0.6)',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '32px',
-                            height: '32px',
-                            cursor: isPlayingTTS ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '14px'
-                          }}
-                          title="Escuchar mensaje"
-                        >
-                          {isPlayingTTS ? '�' : '🔈'}
-                        </button>
-                        {isPlayingTTS && currentAudio && (
-                          <button
-                            onClick={() => {
-                              currentAudio.pause();
-                              setIsPlayingTTS(false);
-                              setCurrentAudio(null);
-                            }}
-                            style={{
-                              background: 'rgba(255,100,100,0.6)',
-                              border: 'none',
-                              borderRadius: '50%',
-                              width: '36px',
-                              height: '36px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '14px'
-                            }}
-                            title="Detener audio"
-                          >
-                            ⏹️
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {isPlayingTTS && (
-                      <div style={{ 
-                        color: '#ffb347', 
-                        fontSize: '0.9rem', 
-                        opacity: 0.8,
-                        fontStyle: 'italic' 
-                      }}>
-                        🎵 Reproduciendo mensaje...
-                      </div>
-                    )}
-                  </>
-                )}
+      {/* Conversation Module */}
+      {(conversationPhase !== 'setup' || currentAgentMessage) && (
+        <section className={styles.section} style={{ marginBottom: '2rem' }}>
+          <h2 className={styles.sectionTitle}>Conversación con tu Asistente</h2>
+          
+          {/* Current Agent Message */}
+          {currentAgentMessage && (
+            <div style={{ 
+              backgroundColor: 'rgba(255, 179, 71, 0.1)', 
+              border: '1px solid #ffb347',
+              borderRadius: '8px',
+              padding: '1.5rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                <strong style={{ color: '#ffb347' }}>
+                  {getArgentineVoices().find(v => v.id === selectedVoice)?.name}:
+                </strong>{' '}
+                <span style={{ color: '#fff' }}>{currentAgentMessage}</span>
               </div>
               
-              <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'center', marginBottom: '1rem' }}>
-                <button 
-                  onClick={recording ? stopRecording : startRecording}
-                  className={`${styles.button} ${recording ? styles.recording : ''}`}
-                  disabled={storyComplete}
-                >
-                  {recording ? '⏹️ Pausar Grabación' : '🎙️ Grabar Siguiente Parte'}
-                </button>
-                
-                <button 
-                  onClick={finishCurrentStory}
-                  className={styles.button}
-                  style={{ 
-                    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                  }}
-                  disabled={!currentStory.trim()}
-                >
-                  ✅ Terminar Historia
-                </button>
-                
-                {canDiscardLast && (
-                  <button 
-                    onClick={discardLastRecording}
-                    className={styles.button}
-                    style={{ 
-                      background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa8a8 100%)',
-                      fontSize: '0.8rem',
-                      padding: '8px 12px'
-                    }}
-                    title="Descartar la última grabación y transcripción"
-                  >
-                    🗑️ Descartar última
-                  </button>
-                )}
-              </div>
-              
-              {audioURL && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <h4 style={{ color: '#ccc', marginBottom: '0.3rem', fontSize: '0.9rem' }}>Última Grabación:</h4>
-                  <audio src={audioURL} controls style={{ width: '100%' }} />
+              {isAgentSpeaking && (
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem',
+                  fontSize: '0.9rem',
+                  color: '#ffb347'
+                }}>
+                  <div className={styles.speakingIndicator}>🎵</div>
+                  <span>Hablando...</span>
                 </div>
               )}
-            </section>
-
-            {transcribedText && (
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Tu Transcripción Más Reciente</h2>
-                <p className={styles.transcription} style={{ 
-                  background: 'rgba(102, 126, 234, 0.1)', 
-                  padding: '0.8rem', 
-                  borderRadius: '6px',
-                  border: '1px solid rgba(102, 126, 234, 0.3)',
-                  fontSize: '0.9rem'
-                }}>
-                  {transcribedText}
-                </p>
-              </section>
-            )}
-
-            {currentStory && (
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Tu Historia</h2>
+              
+              {awaitingUserResponse && !isAgentSpeaking && (
                 <div style={{ 
-                  background: 'rgba(0,0,0,0.2)', 
-                  padding: '1rem', 
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  lineHeight: '1.5',
-                  fontSize: '1rem'
+                  fontSize: '0.9rem', 
+                  color: '#ccc',
+                  fontStyle: 'italic'
                 }}>
-                  {formatStoryForDisplay(currentStory)}
+                  Esperando tu respuesta...
                 </div>
-              </section>
-            )}
-          </>
-        )}
-
-        {storyComplete && (
-          <section className={styles.section} style={{ textAlign: 'center' }}>
-            <h2 className={styles.sectionTitle}>¡Historia Completa!</h2>
-            
-            {aiEncouragement && (
-              <div style={{ 
-                background: 'rgba(0,200,0,0.1)', 
-                padding: '1rem', 
-                borderRadius: '8px',
-                marginBottom: '1rem',
-                border: '1px solid rgba(0,200,0,0.3)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <p style={{ 
-                    color: '#90EE90', 
-                    fontStyle: 'italic',
-                    fontSize: '1rem',
-                    marginBottom: '0',
-                    flex: 1
-                  }}>
-                    🎉 {aiEncouragement}
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                    <button
-                      onClick={() => playTextAsSlowly(aiEncouragement)}
-                      disabled={isPlayingTTS}
-                      style={{
-                        background: isPlayingTTS ? 'rgba(144,238,144,0.3)' : 'rgba(144,238,144,0.6)',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '32px',
-                        height: '32px',
-                        cursor: isPlayingTTS ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '14px'
-                      }}
-                      title="Escuchar felicitación"
-                    >
-                      {isPlayingTTS ? '🔊' : '🔈'}
-                    </button>
-                    {isPlayingTTS && currentAudio && (
-                      <button
-                        onClick={() => {
-                          currentAudio.pause();
-                          setIsPlayingTTS(false);
-                          setCurrentAudio(null);
-                        }}
-                        style={{
-                          background: 'rgba(255,100,100,0.6)',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '32px',
-                          height: '32px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '14px'
-                        }}
-                        title="Detener audio"
-                      >
-                        ⏹️
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {isPlayingTTS && (
-                  <div style={{ 
-                    color: '#90EE90', 
-                    fontSize: '0.9rem', 
-                    opacity: 0.8,
-                    fontStyle: 'italic',
-                    marginTop: '0.5rem'
-                  }}>
-                    🎵 Reproduciendo felicitación...
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Download Links Section */}
-            <div style={{ 
-              background: 'rgba(255,179,71,0.1)', 
-              padding: '1rem', 
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              border: '1px solid rgba(255,179,71,0.3)'
-            }}>
-              <h3 style={{ 
-                color: '#ffb347', 
-                marginBottom: '0.8rem',
-                fontSize: '1.1rem'
-              }}>
-                📁 Descargar tu historia
-              </h3>
-              <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button
-                  onClick={downloadText}
-                  style={{
-                    background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.6rem 1.2rem',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    transition: 'transform 0.2s ease',
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                  title="Descargar la historia como archivo de texto plano"
-                >
-                  📄 Texto (.txt)
-                </button>
-                
-                <button
-                  onClick={downloadAudio}
-                  disabled={audioSegments.length === 0}
-                  style={{
-                    background: audioSegments.length > 0 
-                      ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                      : 'rgba(128,128,128,0.3)',
-                    color: audioSegments.length > 0 ? 'white' : 'rgba(255,255,255,0.5)',
-                    border: 'none',
-                    padding: '0.8rem 1.5rem',
-                    borderRadius: '8px',
-                    cursor: audioSegments.length > 0 ? 'pointer' : 'not-allowed',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    transition: 'transform 0.2s ease',
-                  }}
-                  onMouseOver={(e) => {
-                    if (audioSegments.length > 0) {
-                      e.currentTarget.style.transform = 'scale(1.05)';
-                    }
-                  }}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                  title={audioSegments.length > 0 
-                    ? `Descargar ${audioSegments.length} segmentos de audio combinados`
-                    : 'No hay audio disponible para descargar'
-                  }
-                >
-                  🎵 Audio ({audioSegments.length} segmentos)
-                </button>
-              </div>
-              <p style={{ 
-                color: '#ccc', 
-                fontSize: '0.8rem', 
-                marginTop: '1rem',
-                textAlign: 'center',
-                fontStyle: 'italic'
-              }}>
-                💡 El archivo de texto se puede abrir en cualquier editor. El audio conserva tu voz original.
-              </p>
+              )}
             </div>
-            
-            <button 
-              onClick={() => {
-                setStoryComplete(false);
-                setStoryInProgress(false);
-                setCurrentStory('');
-                setAudioSegments([]); // Reset audio segments
-                setStoryTitle(''); // Reset story title
-                setAiEncouragement(null);
-                setTranscribedText(null);
-                setGeneratedStory(null);
-                setAudioURL(null);
-                
-                // Reset questions tracking
-                setQuestionsAsked([]);
-                
-                // Reset discard tracking
-                setLastRecordingTranscription('');
-                setLastRecordingAudio(null);
-                setCanDiscardLast(false);
-              }}
-              className={styles.button}
-              style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                marginTop: '1rem'
-              }}
-            >
-              🌟 Contar Otra Historia
-            </button>
-          </section>
-        )}
+          )}
+          
+          {/* Conversation Status */}
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            {conversationPhase === 'info_gathering' && (
+              <p style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                Fase: Recopilando información personal ({infoGatheringStep === 'name' ? 'nombre' : 
+                infoGatheringStep === 'age' ? 'edad' : 
+                infoGatheringStep === 'location' ? 'ubicación' : 
+                infoGatheringStep === 'returning_user_check' ? 'verificando cambios' : 'completado'})
+              </p>
+            )}
+            {conversationPhase === 'storytelling' && (
+              <p style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                Fase: Escuchando tu historia • Preguntas realizadas: {questionsAsked.length}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
-        {/* Original standalone transcription section - only show if not in story mode */}
-        {!storyInProgress && !storyComplete && (
-          <section className={styles.section} style={{ textAlign: 'center' }}>
-            <h2 className={styles.sectionTitle}>Transcripción Rápida</h2>
-            <p style={{ marginBottom: '1.5rem' }}>
-              O simplemente graba algo rápido para transcribir
-            </p>
-            
+      <main style={{ width: '100%' }}>
+        <section className={styles.section} style={{ textAlign: 'center' }}>
+          <h2 className={styles.sectionTitle}>
+            {conversationPhase === 'info_gathering' ? 'Información Personal' :
+             conversationPhase === 'storytelling' ? 'Grabar Historia' : 'Grabación Completada'}
+          </h2>
+          
+          <p style={{ marginBottom: '1.5rem' }}>
+            {conversationPhase === 'info_gathering' ? 
+              (recording ? 'Grabando tu respuesta...' : (awaitingUserResponse ? 'Responde la pregunta de tu asistente.' : 'Esperando...')) :
+             conversationPhase === 'storytelling' ? 
+              (recording ? 'Grabando tu historia... Habla claramente al micrófono.' : 'Presiona para grabar tu historia o continuar narrando.') :
+             'Historia completada. Revisa y envía por email.'}
+          </p>
+          
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center', marginBottom: '1rem' }}>
             <button 
               onClick={recording ? stopRecording : startRecording}
               className={`${styles.button} ${recording ? styles.recording : ''}`}
+              disabled={conversationPhase === 'info_gathering' && !awaitingUserResponse}
             >
-              {recording ? '⏹️ Detener Grabación' : '🎙️ Grabación Rápida'}
+              {recording ? '⏹️ Detener Grabación' : 
+               conversationPhase === 'info_gathering' ? '🎙️ Responder' :
+               '🎙️ Grabar Historia'}
             </button>
             
-            {audioURL && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h3 className={styles.sectionTitle}>Grabación</h3>
-                <audio src={audioURL} controls style={{ width: '100%', marginBottom: '1rem' }} />
-              </div>
+            {conversationPhase === 'storytelling' && (
+              <button 
+                onClick={startNewStory}
+                className={styles.button}
+                style={{ backgroundColor: '#e74c3c', fontSize: '0.9rem' }}
+              >
+                � Nueva Historia
+              </button>
             )}
-          </section>
-        )}
-
-        {/* Show transcribed text and generated story only for non-story mode */}
-        {!storyInProgress && !storyComplete && transcribedText && (
+          </div>
+          
+          {audioURL && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <h3 className={styles.sectionTitle}>Grabación Más Reciente</h3>
+              <audio src={audioURL} controls style={{ width: '100%', marginBottom: '1rem' }} />
+            </div>
+          )}
+        </section>
+        
+        {transcribedText && (
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Transcripción</h2>
-            <p className={styles.transcription}>
+            <h2 className={styles.sectionTitle}>Transcripción de la Historia</h2>
+            
+            {/* Memo-style header with story information */}
+            <div style={{
+              backgroundColor: 'rgba(255, 179, 71, 0.1)',
+              border: '1px solid #ffb347',
+              borderRadius: '8px',
+              padding: '1rem',
+              marginBottom: '1rem',
+              fontSize: '0.9rem',
+              color: '#ccc'
+            }}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>Para:</strong> {storytellerName || 'Narrador'}
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <strong>De:</strong> Memorias AI
+              </div>
+              <div>
+                <strong>Fecha:</strong> {new Date().toLocaleDateString('es-ES')}
+              </div>
+            </div>
+            
+            <p className={styles.transcription} style={{ whiteSpace: 'pre-line' }}>
               {transcribedText}
             </p>
-          </section>
-        )}
+            
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+              {/* Email input field moved here, compact design */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '1rem', 
+                marginBottom: '1rem',
+                flexWrap: 'wrap'
+              }}>
+                <label style={{ 
+                  fontSize: '0.9rem', 
+                  color: '#ccc',
+                  minWidth: 'fit-content'
+                }}>
+                  Email:
+                </label>
+                <input
+                  type="email"
+                  value={storytellerEmail}
+                  onChange={(e) => setStorytellerEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  style={{
+                    padding: '0.5rem',
+                    borderRadius: '4px',
+                    border: '1px solid #444',
+                    backgroundColor: '#2a2a2a',
+                    color: '#fff',
+                    fontSize: '0.9rem',
+                    maxWidth: '200px'
+                  }}
+                  required
+                />
+              </div>
 
-        {!storyInProgress && !storyComplete && generatedStory && (
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Historia Generada</h2>
-            <div 
-              className={styles.storyContent}
-              dangerouslySetInnerHTML={{ __html: generatedStory.replace(/\n/g, '<br>') }} 
-            />
-          </section>
-        )}
-
-        {/* Final story display for completed stories */}
-        {storyComplete && generatedStory && (
-          <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Tu Historia Completa</h2>
-            <div style={{ 
-              background: 'rgba(0,0,0,0.2)', 
-              padding: '2rem', 
-              borderRadius: '12px',
-              border: '2px solid rgba(144, 238, 144, 0.3)',
-              lineHeight: '1.7',
-              fontSize: '1.1rem'
-            }}>
-              {formatStoryForDisplay(generatedStory)}
+              {!storyEmailSent ? (
+                <button 
+                  onClick={sendStoryByEmail}
+                  disabled={isEmailSending}
+                  className={styles.button}
+                  style={{ 
+                    backgroundColor: isEmailSending ? '#95a5a6' : '#27ae60',
+                    cursor: isEmailSending ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isEmailSending ? '📧 Enviando...' : '📧 Enviame Mi Historia'}
+                </button>
+              ) : (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  flexWrap: 'wrap' 
+                }}>
+                  <div style={{ color: '#27ae60', fontWeight: 'bold' }}>
+                    ✅ Historia enviada exitosamente a {storytellerEmail}
+                  </div>
+                  <button 
+                    onClick={sendStoryByEmail}
+                    className={styles.button}
+                    style={{ 
+                      backgroundColor: '#27ae60',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    📧 Enviar vía Email
+                  </button>
+                </div>
+              )}
+              
+              {showDownloadOffer && (
+                <div style={{ marginTop: '1rem' }}>
+                  <button 
+                    onClick={downloadStoryAudio}
+                    className={styles.button}
+                    style={{ 
+                      backgroundColor: '#e67e22',
+                      marginRight: '0.5rem'
+                    }}
+                  >
+                    �                                         🎵 Descargar Audio
+                  </button>
+                  <button 
+                    onClick={() => setShowDownloadOffer(false)}
+                    className={styles.button}
+                    style={{ 
+                      backgroundColor: '#95a5a6',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
             </div>
           </section>
         )}

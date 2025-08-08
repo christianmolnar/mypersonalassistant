@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { MemoryManager } from '../../../lib/AgentMemory';
 
 interface StoryAnalysis {
   hasDate: boolean;
@@ -47,6 +48,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let systemMessage = '';
 
     if (type === 'encouragement') {
+      // Get memory context for better question generation
+      let memoryContext = '';
+      try {
+        const memories = MemoryManager.getMemories('MemoriasAI', {
+          type: 'success',
+          limit: 5
+        });
+        if (memories.length > 0) {
+          memoryContext = `\n\nContexto de preguntas exitosas anteriores:\n${
+            memories.map(m => m.content).join('\n')
+          }`;
+        }
+      } catch (error) {
+        console.log('Could not retrieve memory context:', error);
+        // Continue without memory context
+      }
+
       // First analyze the story for missing details
       const analysis = await analyzeStory(story, apiKey);
       
@@ -68,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Skip to encouragement instead of repeating the question
           prompt = `La persona está contando su historia personal: "${story}"
 
-Ya se le preguntó sobre ${missingElement} antes. No repitas preguntas similares.
+Ya se le preguntó sobre ${missingElement} antes. No repitas preguntas similares.${memoryContext}
 
 Responde con un comentario alentador simple para continuar la historia.
 
@@ -81,7 +99,7 @@ Mantén tu respuesta a 1 oración. Sé directo, no florido.`;
         } else {
           prompt = `La persona está contando su historia personal: "${story}"
 
-He analizado su historia y noto que falta información importante sobre ${missingElement}. 
+He analizado su historia y noto que falta información importante sobre ${missingElement}.${memoryContext}
 
 IMPORTANTE: Responde SOLO con una pregunta específica para obtener el detalle faltante sobre ${missingElement}. No agregues comentarios adicionales.
 
@@ -245,6 +263,28 @@ Devuelve SOLO la historia original con el nuevo detalle integrado naturalmente, 
       // Simple check: if the message ends with a question mark, it's likely a question
       if (message.trim().endsWith('?')) {
         questionAsked = message.trim();
+        
+        // Store this interaction in memory for learning
+        try {
+          await MemoryManager.storeMemory({
+            agentId: 'MemoriasAI',
+            type: 'interaction',
+            content: `Question asked: "${message}" for story: "${story.substring(0, 100)}..."`,
+            metadata: {
+              storyLength: story.length,
+              questionsAsked: questionsAsked,
+              questionType: 'story_detail',
+              interactionType: 'question_generation'
+            },
+            importance: 'medium',
+            tags: ['question', 'story_analysis', 'memorias_ai']
+          });
+          
+          console.log('Stored question interaction in memory for learning');
+        } catch (memoryError) {
+          console.error('Error storing interaction in memory:', memoryError);
+          // Continue without memory - don't fail the request
+        }
       }
     }
 
