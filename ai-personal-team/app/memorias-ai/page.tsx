@@ -38,6 +38,10 @@ interface LocalizedStrings {
   LOCATION_PLACEHOLDER: string;
   CONTINUE_BUTTON: string;
   EDIT_INFO_BUTTON: string;
+  // New simplified conversation questions
+  ASK_NAME?: string;
+  ASK_AGE?: string;
+  ASK_LOCATION?: string;
 }
 
 const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
@@ -46,7 +50,7 @@ const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
     VOICE_SELECTION_INSTRUCTION: "Selecciona tu guía para comenzar...",
     VOICE_PREVIEW_MESSAGE: "Hola, soy {voiceName}. {description}",
     VOICE_PLAYING: "Reproduciendo...",
-    WELCOME_MESSAGE: "¡Hola! Soy {voiceName}, tu asistente personal para crear memorias. Para poder ayudarte, me gustaría conocerte mejor. ¿Podrías decirme tu nombre?",
+    WELCOME_MESSAGE: "¡Hola! Soy {voiceName}, tu asistente personal para crear memorias. ¿Cuál es tu nombre?",
     INTERRUPT_AGENT_BUTTON: "Interrumpir Agente",
     SPEAK_TO_AGENT_BUTTON: "Hablar con el agente",
     STOP_RECORDING_BUTTON: "⏹️ Detener Grabación",
@@ -58,14 +62,17 @@ const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
     AGE_PLACEHOLDER: "¿Qué edad tenías cuando ocurrieron estos eventos?",
     LOCATION_PLACEHOLDER: "¿Dónde ocurrió esta historia?",
     CONTINUE_BUTTON: "Continuar con la historia",
-    EDIT_INFO_BUTTON: "Editar información"
+    EDIT_INFO_BUTTON: "Editar información",
+    ASK_NAME: "¿Cuál es tu nombre?",
+    ASK_AGE: "¿Cuál era tu edad?",
+    ASK_LOCATION: "¿Y dónde fue que pasó esta historia?"
   },
   en: {
     VOICE_SELECTION_TITLE: "Choose your guide to begin...",
     VOICE_SELECTION_INSTRUCTION: "Choose your guide to begin...",
     VOICE_PREVIEW_MESSAGE: "Hello, I'm {voiceName}. {description}",
     VOICE_PLAYING: "Playing...",
-    WELCOME_MESSAGE: "Hello! I'm {voiceName}, your personal assistant for creating memories. To help you better, I'd like to get to know you. Could you tell me your name?",
+    WELCOME_MESSAGE: "Hello! I'm {voiceName}, your personal assistant for creating memories. What is your name?",
     INTERRUPT_AGENT_BUTTON: "Interrupt Agent",
     SPEAK_TO_AGENT_BUTTON: "Speak to Agent",
     STOP_RECORDING_BUTTON: "⏹️ Stop Recording",
@@ -77,7 +84,10 @@ const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
     AGE_PLACEHOLDER: "How old were you when these events happened?",
     LOCATION_PLACEHOLDER: "Where did this story take place?",
     CONTINUE_BUTTON: "Continue with the story",
-    EDIT_INFO_BUTTON: "Edit information"
+    EDIT_INFO_BUTTON: "Edit information",
+    ASK_NAME: "What is your name?",
+    ASK_AGE: "What was your age?",
+    ASK_LOCATION: "And where did this story take place?"
   },
   // For now, use Spanish as fallback for other languages  
   pt: {
@@ -278,9 +288,9 @@ const getLocalizedText = (
   language: SupportedLanguage, 
   variables?: Record<string, string>
 ): string => {
-  let text = localizedStrings[language]?.[key] || localizedStrings['es'][key]; // Fallback to Spanish
+  let text = localizedStrings[language]?.[key] || localizedStrings['es'][key] || key; // Fallback to Spanish or key itself
   
-  if (variables) {
+  if (variables && text) {
     Object.entries(variables).forEach(([varKey, value]) => {
       text = text.replace(`{${varKey}}`, value);
     });
@@ -459,8 +469,11 @@ export default function MemoriasAIPage() {
   };
 
   const startRecording = async () => {
-    // For storytelling phase, ensure we have all required info
-    if (state.agent.conversationPhase === 'storytelling') {
+    // Only require complete info when user is actually recording their story (not responding to agent)
+    if (state.agent.conversationPhase === 'storytelling' && 
+        !state.agent.awaitingUserResponse && 
+        state.agent.agentSpeechState !== 'awaiting_user_response' &&
+        state.agent.agentSpeechState !== 'interrupted') {
       if (!state.userProfile.storytellerName.trim() || !state.userProfile.ageAtEvents.trim() || !state.userProfile.eventLocation.trim()) {
         alert('Faltan datos del narrador. Por favor complete la información primero.');
         return;
@@ -655,6 +668,11 @@ export default function MemoriasAIPage() {
   const processTranscription = async (audioBlob: Blob) => {
     try {
       console.log("Processing audio blob:", audioBlob.size, "bytes", "type:", audioBlob.type);
+      console.log("Current state when processing:", {
+        conversationPhase: state.agent.conversationPhase,
+        awaitingUserResponse: state.agent.awaitingUserResponse,
+        agentSpeechState: state.agent.agentSpeechState
+      });
       
       // Check if we have valid audio data
       if (!audioBlob || audioBlob.size === 0) {
@@ -706,10 +724,22 @@ export default function MemoriasAIPage() {
         const formattedTranscription = formatStoryText(transcription);
         dispatch(storyActions.setLastTranscription(formattedTranscription));
         
-        // Handle conversation flow based on current phase
-        if (state.agent.conversationPhase === 'info_gathering') {
+        // Handle conversation flow based on current phase and agent state
+        console.log("Determining response handler based on state:", {
+          awaitingUserResponse: state.agent.awaitingUserResponse,
+          agentSpeechState: state.agent.agentSpeechState,
+          conversationPhase: state.agent.conversationPhase
+        });
+        
+        if (state.agent.awaitingUserResponse || state.agent.agentSpeechState === 'awaiting_user_response') {
+          // User is responding to agent - handle as conversation, not story
+          console.log("→ Calling handleUserConversationalResponse");
+          await handleUserConversationalResponse(transcription);
+        } else if (state.agent.conversationPhase === 'info_gathering') {
+          console.log("→ Calling processInfoGatheringResponse");
           await processInfoGatheringResponse(transcription);
         } else if (state.agent.conversationPhase === 'storytelling') {
+          console.log("→ Calling analyzeStoryAndRespond");
           await analyzeStoryAndRespond(transcription);
         }
         
@@ -952,10 +982,11 @@ export default function MemoriasAIPage() {
   };
 
   const startInfoGathering = async () => {
-    dispatch(agentActions.setConversationPhase('info_gathering'));
-    dispatch(agentActions.setInfoGatheringStep('name'));
+    // Skip step-by-step gathering, go directly to storytelling readiness
+    dispatch(agentActions.setConversationPhase('storytelling'));
+    dispatch(agentActions.setInfoGatheringStep('completed'));
     
-    const welcomeMessage = "¡Hola! Soy tu asistente de Memorias AI. Te voy a ayudar a grabar tu historia. Primero necesito conocerte mejor. ¿Podrías decirme tu nombre?";
+    const welcomeMessage = "¡Hola! Soy tu asistente de Memorias AI. Te voy a ayudar a grabar tu historia. Completa tu información personal arriba y luego presiona 'Grabar Historia' para comenzar.";
     await speakAgentMessage(welcomeMessage);
   };
 
@@ -1035,7 +1066,7 @@ export default function MemoriasAIPage() {
         dispatch(userProfileActions.setStorytellerName(transcription.trim()));
         dispatch(agentActions.setInfoGatheringStep('age'));
         
-        const ageMessage = `Perfecto, ${transcription.trim()}. Ahora, ¿qué edad tenías cuando ocurrieron los eventos de esta historia que me vas a contar?`;
+        const ageMessage = getLocalizedText('ASK_AGE', state.ui.currentLanguage) || "¿Cuál era tu edad?";
         await speakAgentMessage(ageMessage);
         break;
         
@@ -1053,7 +1084,7 @@ export default function MemoriasAIPage() {
           dispatch(agentActions.receiveUserResponse());
         } else {
           dispatch(agentActions.setInfoGatheringStep('location'));
-          const locationMessage = `Muy bien. ¿En qué lugar ocurrieron estos eventos que me vas a narrar?`;
+          const locationMessage = getLocalizedText('ASK_LOCATION', state.ui.currentLanguage) || "¿Y dónde fue que pasó esta historia?";
           await speakAgentMessage(locationMessage);
         }
         break;
@@ -1067,6 +1098,52 @@ export default function MemoriasAIPage() {
         await speakAgentMessage(readyMessage);
         dispatch(agentActions.receiveUserResponse());
         break;
+    }
+  };
+
+  const handleUserConversationalResponse = async (userResponse: string) => {
+    // User is responding to the agent (e.g., after welcome message)
+    console.log("handleUserConversationalResponse called with:", userResponse);
+    
+    // Clear the awaiting response state
+    dispatch(agentActions.receiveUserResponse());
+    console.log("Cleared awaiting response state");
+    
+    // Generate a helpful response based on what the user said
+    try {
+      console.log("Calling /api/agents/feedback for conversational response");
+      const response = await fetch('/api/agents/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          story: userResponse,
+          type: 'conversation',
+          conversationContext: 'user_greeting_response',
+          userName: state.userProfile.storytellerName || 'querido',
+          questionsAsked: state.agent.questionsAsked,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Received API response:", data);
+        if (data.message) {
+          console.log("Speaking agent message:", data.message);
+          await speakAgentMessage(data.message);
+        }
+      } else {
+        console.log("API response not ok, using fallback");
+        // Fallback response if API fails
+        const defaultResponse = "Te escuché perfectamente. Cuando estés listo para comenzar tu historia, asegúrate de llenar la información arriba y luego presiona 'Grabar Historia'.";
+        await speakAgentMessage(defaultResponse);
+      }
+    } catch (error) {
+      console.error('Error getting conversational response:', error);
+      // Fallback response
+      const defaultResponse = "Te escuché perfectamente. Cuando estés listo para comenzar tu historia, asegúrate de llenar la información arriba y luego presiona 'Grabar Historia'.";
+      await speakAgentMessage(defaultResponse);
     }
   };
 
@@ -1513,199 +1590,131 @@ El equipo de Memorias AI`;
         </section>
       )}
 
-      {/* Conversational Info Gathering - Step by Step Interface */}
-      {state.agent.selectedVoice && state.agent.conversationPhase === 'info_gathering' && (
-        <section className={styles.section} style={{ marginBottom: '2rem' }}>
-          <h2 className={styles.sectionTitle}>
-            Información Personal
-          </h2>
-          
-          {/* Progress Indicator */}
+      {/* Compact Notebook-Style User Information */}
+      {state.agent.selectedVoice && (
+        <section className={styles.section} style={{ marginBottom: '1rem' }}>
           <div style={{ 
-            textAlign: 'center', 
-            marginBottom: '1.5rem',
-            fontSize: '0.9rem',
-            color: '#ccc'
-          }}>
-            Paso {
-              state.agent.infoGatheringStep === 'name' ? '1' :
-              state.agent.infoGatheringStep === 'age' ? '2' :
-              state.agent.infoGatheringStep === 'location' ? '3' :
-              state.agent.infoGatheringStep === 'returning_user_check' ? 'confirmación' : 'completado'
-            } de 3 • {
-              state.agent.infoGatheringStep === 'name' ? 'Nombre' :
-              state.agent.infoGatheringStep === 'age' ? 'Edad' :
-              state.agent.infoGatheringStep === 'location' ? 'Ubicación' :
-              state.agent.infoGatheringStep === 'returning_user_check' ? 'Confirmando cambios' : 'Información completa'
-            }
-          </div>
-          
-          <div style={{ 
-            maxWidth: '500px', 
+            maxWidth: '600px', 
             margin: '0 auto',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            backgroundColor: 'rgba(255, 255, 255, 0.02)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '8px',
-            padding: '1.5rem'
+            padding: '1rem 1.5rem',
+            fontFamily: 'monospace'
           }}>
             
-            {/* Current Step Info Display */}
-            {state.agent.infoGatheringStep === 'name' && (
-              <div style={{ textAlign: 'center' }}>
+            {/* Inline notebook-style fields */}
+            <div style={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              
+              {/* Name Line */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
                 <label style={{ 
-                  display: 'block',
                   color: '#ffb347', 
-                  fontSize: '1rem', 
+                  fontSize: '0.9rem', 
                   fontWeight: 'bold',
-                  marginBottom: '0.75rem'
+                  minWidth: '60px'
                 }}>
-                  Tu nombre:
+                  {getLocalizedText('NAME_LABEL', state.ui.currentLanguage)}:
                 </label>
                 <input
                   type="text"
                   value={state.userProfile.storytellerName}
                   onChange={(e) => dispatch(userProfileActions.setStorytellerName(e.target.value))}
-                  placeholder="Escribe o di tu nombre..."
+                  placeholder={getLocalizedText('NAME_PLACEHOLDER', state.ui.currentLanguage)}
                   style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 179, 71, 0.3)',
-                    borderRadius: '8px',
+                    flex: 1,
+                    padding: '0.3rem 0',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px dotted rgba(255, 255, 255, 0.3)',
                     color: '#fff',
-                    fontSize: '1rem',
+                    fontSize: '0.9rem',
                     outline: 'none',
-                    textAlign: 'center',
-                    transition: 'border-color 0.3s ease'
+                    fontFamily: 'inherit'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#ffb347'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255, 179, 71, 0.3)'}
+                  onFocus={(e) => e.target.style.borderBottomColor = '#ffb347'}
+                  onBlur={(e) => e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.3)'}
                 />
-                <p style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '0.5rem', fontStyle: 'italic' }}>
-                  Puedes editar este campo si necesitas corregir lo que se transcribió
-                </p>
               </div>
-            )}
 
-            {state.agent.infoGatheringStep === 'age' && (
-              <div style={{ textAlign: 'center' }}>
+              {/* Age Line */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
                 <label style={{ 
-                  display: 'block',
                   color: '#ffb347', 
-                  fontSize: '1rem', 
+                  fontSize: '0.9rem', 
                   fontWeight: 'bold',
-                  marginBottom: '0.75rem'
+                  minWidth: '60px'
                 }}>
-                  Tu edad durante los eventos:
+                  {getLocalizedText('AGE_LABEL', state.ui.currentLanguage)}:
                 </label>
                 <input
                   type="text"
                   value={state.userProfile.ageAtEvents}
                   onChange={(e) => dispatch(userProfileActions.setAgeAtEvents(e.target.value))}
-                  placeholder="Escribe o di tu edad..."
+                  placeholder={getLocalizedText('AGE_PLACEHOLDER', state.ui.currentLanguage)}
                   style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 179, 71, 0.3)',
-                    borderRadius: '8px',
+                    flex: 1,
+                    padding: '0.3rem 0',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px dotted rgba(255, 255, 255, 0.3)',
                     color: '#fff',
-                    fontSize: '1rem',
+                    fontSize: '0.9rem',
                     outline: 'none',
-                    textAlign: 'center',
-                    transition: 'border-color 0.3s ease'
+                    fontFamily: 'inherit'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#ffb347'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255, 179, 71, 0.3)'}
+                  onFocus={(e) => e.target.style.borderBottomColor = '#ffb347'}
+                  onBlur={(e) => e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.3)'}
                 />
-                <p style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '0.5rem', fontStyle: 'italic' }}>
-                  Puedes editar este campo si necesitas corregir lo que se transcribió
-                </p>
               </div>
-            )}
 
-            {state.agent.infoGatheringStep === 'location' && (
-              <div style={{ textAlign: 'center' }}>
+              {/* Location Line */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
                 <label style={{ 
-                  display: 'block',
                   color: '#ffb347', 
-                  fontSize: '1rem', 
+                  fontSize: '0.9rem', 
                   fontWeight: 'bold',
-                  marginBottom: '0.75rem'
+                  minWidth: '60px'
                 }}>
-                  Lugar donde ocurrió la historia:
+                  {getLocalizedText('LOCATION_LABEL', state.ui.currentLanguage)}:
                 </label>
                 <input
                   type="text"
                   value={state.userProfile.eventLocation}
                   onChange={(e) => dispatch(userProfileActions.setEventLocation(e.target.value))}
-                  placeholder="Escribe o di el lugar..."
+                  placeholder={getLocalizedText('LOCATION_PLACEHOLDER', state.ui.currentLanguage)}
                   style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    border: '2px solid rgba(255, 179, 71, 0.3)',
-                    borderRadius: '8px',
+                    flex: 1,
+                    padding: '0.3rem 0',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px dotted rgba(255, 255, 255, 0.3)',
                     color: '#fff',
-                    fontSize: '1rem',
+                    fontSize: '0.9rem',
                     outline: 'none',
-                    textAlign: 'center',
-                    transition: 'border-color 0.3s ease'
+                    fontFamily: 'inherit'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#ffb347'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255, 179, 71, 0.3)'}
+                  onFocus={(e) => e.target.style.borderBottomColor = '#ffb347'}
+                  onBlur={(e) => e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.3)'}
                 />
-                <p style={{ fontSize: '0.8rem', color: '#ccc', marginTop: '0.5rem', fontStyle: 'italic' }}>
-                  Puedes editar este campo si necesitas corregir lo que se transcribió
-                </p>
               </div>
-            )}
-
-            {/* Information Summary for returning users or confirmation */}
-            {(state.agent.infoGatheringStep === 'returning_user_check' || state.agent.infoGatheringStep === 'completed') && (
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{ color: '#ffb347', marginBottom: '1rem' }}>Información recopilada:</h3>
-                <div style={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-                  borderRadius: '6px', 
-                  padding: '1rem',
-                  marginBottom: '1rem'
-                }}>
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>Nombre:</strong> {state.userProfile.storytellerName || '[pendiente]'}
-                  </div>
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>Edad:</strong> {state.userProfile.ageAtEvents || '[pendiente]'} años
-                  </div>
-                  <div>
-                    <strong>Lugar:</strong> {state.userProfile.eventLocation || '[pendiente]'}
-                  </div>
-                </div>
-                
-                {state.agent.infoGatheringStep === 'completed' && (
-                  <button
-                    onClick={() => {
-                      dispatch(agentActions.setConversationPhase('storytelling'));
-                      const confirmationMessage = `Perfecto, ${state.userProfile.storytellerName}. Ya tengo toda la información. Ahora estoy listo para escuchar tu historia sobre cuando tenías ${state.userProfile.ageAtEvents} años en ${state.userProfile.eventLocation}. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme tu historia.`;
-                      speakAgentMessage(confirmationMessage);
-                    }}
-                    style={{
-                      backgroundColor: '#ffb347',
-                      color: '#000',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0.75rem 1.5rem',
-                      fontSize: '1rem',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    Continuar con mi historia
-                  </button>
-                )}
-              </div>
-            )}
+            </div>
           </div>
         </section>
       )}
@@ -1723,11 +1732,21 @@ El equipo de Memorias AI`;
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center', marginBottom: '1rem' }}>
               <button 
                 onClick={() => {
-                  // Recording logic - call the actual functions
                   if (state.recording.recording) {
                     console.log('🛑 Stopping recording...');
                     stopRecording();
                   } else {
+                    // Validate required fields before starting recording
+                    const isValidName = state.userProfile.storytellerName && state.userProfile.storytellerName.trim().length > 0;
+                    const isValidAge = state.userProfile.ageAtEvents && state.userProfile.ageAtEvents.trim().length > 0;
+                    const isValidLocation = state.userProfile.eventLocation && state.userProfile.eventLocation.trim().length > 0;
+                    
+                    if (!isValidName || !isValidAge || !isValidLocation) {
+                      const agentMessage = "Por favor completa todos los campos requeridos (Nombre, Edad, Lugar) antes de grabar tu historia.";
+                      dispatch(agentActions.setAgentMessage(agentMessage));
+                      return;
+                    }
+                    
                     console.log('🎤 Starting recording...');
                     startRecording();
                   }
