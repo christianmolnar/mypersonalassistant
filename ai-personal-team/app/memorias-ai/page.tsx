@@ -350,6 +350,22 @@ export default function MemoriasAIPage() {
     return mimeToExt[baseMimeType] || 'webm'; // default to webm
   };
 
+  // Helper function to get canonical story text (user-edited or concatenated segments)
+  const getCanonicalStoryText = (): string => {
+    // If user has edited the story text, that becomes canonical
+    if (state.story.currentStoryText.trim()) {
+      return state.story.currentStoryText;
+    }
+    
+    // Otherwise, concatenate all story segments
+    if (state.story.storySegments.length > 0) {
+      return state.story.storySegments.join('\n\n');
+    }
+    
+    // Fallback to last transcription for backward compatibility
+    return state.story.lastTranscription || '';
+  };
+
   // Function to concatenate story audio segments
   const createCombinedStoryAudio = (): Blob | null => {
     if (state.story.storyAudioSegments.length === 0) return null;
@@ -1060,6 +1076,14 @@ export default function MemoriasAIPage() {
     // Add this segment to story segments
     dispatch(storyActions.addStorySegment(storyText));
     
+    // Update currentStoryText with concatenated segments (unless user has made manual edits)
+    // We only auto-update if currentStoryText is empty or matches the previous concatenated segments
+    const currentConcatenated = state.story.storySegments.join('\n\n');
+    if (!state.story.currentStoryText || state.story.currentStoryText === currentConcatenated) {
+      const newConcatenated = [...state.story.storySegments, storyText].join('\n\n');
+      dispatch(storyActions.setCurrentStoryText(newConcatenated));
+    }
+    
     // Use a simple timer to detect when user has paused
     if (silenceTimer.current) {
       clearTimeout(silenceTimer.current);
@@ -1077,13 +1101,16 @@ export default function MemoriasAIPage() {
       // Get memory context for better questioning
       const memoryContext = MemoryManager.generateContextForAgent('MemoriasAI');
       
+      // Use the canonical story text for context
+      const fullStoryContext = getCanonicalStoryText();
+      
       const response = await fetch('/api/agents/feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          story: currentStory,
+          story: fullStoryContext || currentStory,
           type: 'encouragement',
           questionsAsked: state.agent.questionsAsked,
           memoryContext: memoryContext
@@ -1104,7 +1131,8 @@ export default function MemoriasAIPage() {
 
   const sendStoryByEmail = async () => {
     // Validate required fields
-    if (!state.story.lastTranscription) {
+    const canonicalStoryText = getCanonicalStoryText();
+    if (!canonicalStoryText) {
       alert('No hay historia transcrita para enviar.');
       return;
     }
@@ -1135,7 +1163,7 @@ Aquí está tu historia transcrita de Memorias AI:
 
 ---
 
-${formatStoryText(state.story.lastTranscription)}
+${formatStoryText(canonicalStoryText)}
 
 ---
 
@@ -1731,7 +1759,7 @@ El equipo de Memorias AI`;
           </section>
         )}
         
-        {state.story.lastTranscription && (
+        {(getCanonicalStoryText() || state.story.storySegments.length > 0) && (
           <section className={styles.section}>
             <h2 className={styles.sectionTitle}>Transcripción de la Historia</h2>
             
@@ -1756,8 +1784,37 @@ El equipo de Memorias AI`;
               </div>
             </div>
             
-            <p className={styles.transcription} style={{ whiteSpace: 'pre-line' }}>
-              {state.story.lastTranscription}
+            {/* Editable story text area */}
+            <textarea
+              value={getCanonicalStoryText()}
+              onChange={(e) => dispatch(storyActions.setCurrentStoryText(e.target.value))}
+              placeholder="Tu historia aparecerá aquí conforme vayas grabando..."
+              style={{
+                width: '100%',
+                minHeight: '200px',
+                padding: '1rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                border: '2px solid rgba(255, 179, 71, 0.3)',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '1rem',
+                lineHeight: '1.6',
+                resize: 'vertical',
+                outline: 'none',
+                fontFamily: 'inherit',
+                whiteSpace: 'pre-wrap'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#ffb347'}
+              onBlur={(e) => e.target.style.borderColor = 'rgba(255, 179, 71, 0.3)'}
+            />
+            <p style={{ 
+              fontSize: '0.8rem', 
+              color: '#ccc', 
+              marginTop: '0.5rem', 
+              fontStyle: 'italic',
+              textAlign: 'center'
+            }}>
+              Puedes editar tu historia directamente aquí. Tus cambios serán guardados automáticamente.
             </p>
             
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
