@@ -485,15 +485,16 @@ export default function MemoriasAIPage() {
         return;
       }
     }
-    
+
+    // 🚨 ENHANCED ERROR HANDLING: Track recording start time
+    const recordingStartTime = Date.now();
+
     // Reset states
     dispatch(recordingActions.clearAudioChunks());
     dispatch(recordingActions.setAudioURL(null));
     if (state.agent.conversationPhase === 'storytelling') {
       setTranscribedText(null); // Only reset transcription for storytelling
-    }
-    
-    try {
+    }    try {
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -597,7 +598,8 @@ export default function MemoriasAIPage() {
             chunks: localAudioChunks.length
           });
           
-          await processTranscription(audioBlob);
+          // 🚨 ENHANCED ERROR HANDLING: Pass recording start time for validation
+          await processTranscription(audioBlob, recordingStartTime);
         } catch (error) {
           console.error("Error in transcription process:", error);
           setTranscribedText("Error al transcribir. Por favor, intente nuevamente.");
@@ -671,13 +673,24 @@ export default function MemoriasAIPage() {
     }
   };
 
-  const processTranscription = async (audioBlob: Blob) => {
+  const processTranscription = async (audioBlob: Blob, recordingStartTime?: number) => {
     try {
       console.log("Processing audio blob:", audioBlob.size, "bytes", "type:", audioBlob.type);
       
-      // Check if we have valid audio data
+      // 🚨 ENHANCED ERROR HANDLING: Check for short/empty recordings
+      const recordingDuration = recordingStartTime ? Date.now() - recordingStartTime : 0;
+      
       if (!audioBlob || audioBlob.size === 0) {
-        setTranscribedText("No recorded narration");
+        console.log("No audio data captured");
+        setTranscribedText("No se pudo capturar audio");
+        await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
+        return;
+      }
+      
+      if (isRecordingTooShort(audioBlob, recordingDuration)) {
+        console.log("Recording too short:", { size: audioBlob.size, duration: recordingDuration });
+        setTranscribedText("Grabación muy corta");
+        await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
         return;
       }
       
@@ -722,6 +735,15 @@ export default function MemoriasAIPage() {
         const transcription = transcriptionResult.text;
         
         console.log("Received server transcription:", transcription);
+        
+        // 🚨 ENHANCED ERROR HANDLING: Validate transcription result
+        if (isTranscriptionInvalid(transcription)) {
+          console.log("Invalid transcription result:", transcription);
+          setTranscribedText("No se pudo entender el audio");
+          await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
+          return;
+        }
+        
         const formattedTranscription = formatStoryText(transcription);
         setTranscribedText(formattedTranscription);
         
@@ -752,6 +774,15 @@ export default function MemoriasAIPage() {
         });
         
         console.log("Direct transcription successful:", result);
+        
+        // 🚨 ENHANCED ERROR HANDLING: Validate transcription result
+        if (isTranscriptionInvalid(result.text)) {
+          console.log("Invalid direct transcription result:", result.text);
+          setTranscribedText("No se pudo entender el audio");
+          await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
+          return;
+        }
+        
         const formattedText = formatStoryText(result.text);
         setTranscribedText(formattedText);
         
@@ -799,7 +830,7 @@ export default function MemoriasAIPage() {
         });
         
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
           console.error("Server returned error:", errorData);
           throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
         }
@@ -807,7 +838,16 @@ export default function MemoriasAIPage() {
         const transcriptionResult = await response.json();
         const transcription = transcriptionResult.text;
         
-        console.log("Received transcription:", transcription);
+        console.log("Received fallback transcription:", transcription);
+        
+        // 🚨 ENHANCED ERROR HANDLING: Validate fallback transcription result
+        if (isTranscriptionInvalid(transcription)) {
+          console.log("Invalid fallback transcription result:", transcription);
+          setTranscribedText("No se pudo entender el audio");
+          await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
+          return;
+        }
+        
         const formattedTranscription = formatStoryText(transcription);
         setTranscribedText(formattedTranscription);
         
@@ -818,28 +858,84 @@ export default function MemoriasAIPage() {
           await analyzeStoryAndRespond(transcription);
         }
       } catch (serverError) {
-        console.error("Server API transcription error:", serverError);
-        throw serverError; // Re-throw to be caught by the outer catch
+        console.error("Fallback server API transcription error:", serverError);
+        
+        // 🚨 ENHANCED ERROR HANDLING: Final fallback with retry message
+        setTranscribedText("Error de transcripción");
+        await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
       }
     } catch (error) {
       console.error("Error transcribing audio:", error);
       
-      // Provide more specific error messages
-      let errorMessage = "No recorded narration";
-      if (error instanceof Error) {
-        if (error.message.includes("API key")) {
-          errorMessage = "Transcription service not configured";
-        } else if (error.message.includes("network") || error.message.includes("fetch")) {
-          errorMessage = "Network error - please check your connection";
-        } else if (error.message.includes("audio") || error.message.includes("format")) {
-          errorMessage = "Audio format not supported";
-        }
-      }
-      
-      setTranscribedText(errorMessage);
+      // 🚨 ENHANCED ERROR HANDLING: Provide specific error messages and retry
+      setTranscribedText("Error de transcripción");
+      await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
     }
   };
   
+  // 🚨 ERROR HANDLING UTILITIES
+  // Check if audio recording is too short or empty
+  const isRecordingTooShort = (audioBlob: Blob, recordingDuration: number): boolean => {
+    const minDurationMs = 500; // Minimum 0.5 seconds
+    const minSizeBytes = 1000; // Minimum 1KB
+    
+    return recordingDuration < minDurationMs || audioBlob.size < minSizeBytes;
+  };
+
+  // Check if transcription result looks like a sample/test response
+  const isTranscriptionInvalid = (text: string): boolean => {
+    const cleanText = text.toLowerCase().trim();
+    
+    // Check for empty or very short responses
+    if (cleanText.length < 3) return true;
+    
+    // Check for common API sample responses
+    const sampleResponses = [
+      'thank you for using whisper',
+      'this is a test',
+      'test recording',
+      'sample audio',
+      'hello world',
+      'testing testing',
+      'you',
+      'i',
+      'the',
+      'a',
+      'an'
+    ];
+    
+    return sampleResponses.includes(cleanText);
+  };
+
+  // Handle retry with "I didn't get that" message
+  const handleTranscriptionRetry = async (phase: 'info_gathering' | 'storytelling') => {
+    let retryMessage = '';
+    
+    if (phase === 'info_gathering') {
+      // Get the current question being asked in info gathering
+      switch (state.agent.infoGatheringStep) {
+        case 'name':
+          retryMessage = 'No pude escucharte bien. ¿Podrías decirme tu nombre de nuevo?';
+          break;
+        case 'age':
+          retryMessage = 'No pude escucharte bien. ¿Qué edad tenías cuando ocurrieron estos eventos?';
+          break;
+        case 'location':
+          retryMessage = 'No pude escucharte bien. ¿En qué lugar ocurrieron estos eventos?';
+          break;
+        case 'returning_user_check':
+          retryMessage = 'No pude escucharte bien. ¿Qué información te gustaría cambiar para esta nueva historia?';
+          break;
+        default:
+          retryMessage = 'No pude escucharte bien. ¿Podrías repetir lo que dijiste?';
+      }
+    } else {
+      retryMessage = 'No pude escuchar tu historia claramente. ¿Podrías contarme esa parte de nuevo?';
+    }
+    
+    await speakAgentMessage(retryMessage);
+  };
+
   // Enhanced voice preview with double-click prevention
   const previewVoice = async (voice: any) => {
     // Prevent multiple voice previews from playing simultaneously
@@ -1095,14 +1191,15 @@ export default function MemoriasAIPage() {
     // Add this segment to story segments
     setStorySegments(prev => [...prev, storyText]);
     
+    // 🚫 TEMPORARILY DISABLED: Agent asking questions (not ready yet)
     // Use a simple timer to detect when user has paused
-    if (silenceTimer.current) {
-      clearTimeout(silenceTimer.current);
-    }
-    
-    silenceTimer.current = setTimeout(async () => {
-      await generateContextualQuestion(storyText);
-    }, 3000); // Wait 3 seconds after transcription before asking question
+    // if (silenceTimer.current) {
+    //   clearTimeout(silenceTimer.current);
+    // }
+    // 
+    // silenceTimer.current = setTimeout(async () => {
+    //   await generateContextualQuestion(storyText);
+    // }, 3000); // Wait 3 seconds after transcription before asking question
   };
 
   const generateContextualQuestion = async (currentStory: string) => {
