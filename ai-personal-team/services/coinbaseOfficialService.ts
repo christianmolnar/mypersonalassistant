@@ -89,14 +89,16 @@ class CoinbaseOfficialService {
       });
       
       this.isInitialized = true;
-      console.log('Coinbase client initialized successfully, will test connection...');
+      console.log('Coinbase client initialized successfully');
       
-      // Immediately test connection to verify credentials
-      setTimeout(() => {
-        this.testConnection().catch(err => 
-          console.error('Failed to verify Coinbase connection:', err)
-        );
-      }, 1000);
+      // Only test connection in development/runtime, not during build
+      if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        setTimeout(() => {
+          this.testConnection().catch(err => 
+            console.error('Failed to verify Coinbase connection:', err)
+          );
+        }, 1000);
+      }
     } catch (error) {
       console.error('Failed to initialize Coinbase client:', error);
       this.client = null;
