@@ -6,7 +6,14 @@
  */
 
 // Configuration for the transcription service
-interface WhisperConfig {
+import OpenAI from 'openai';
+
+// Load environment variables if not already loaded
+if (typeof window === 'undefined') {
+  require('dotenv').config({ path: '.env.local' });
+}
+
+export interface WhisperConfig {
   apiKey?: string;    // Optional API key for OpenAI's Whisper API
   language: string;   // Language code for transcription in ISO-639-1 format (e.g., 'es' for Spanish)
   model: string;      // Whisper model to use (e.g., 'whisper-1')
@@ -36,6 +43,13 @@ export async function transcribeAudio(
   try {
     // Check for API key in config or environment
     const apiKey = fullConfig.apiKey || process.env.OPENAI_API_KEY;
+    
+    console.log("Transcription attempt:", {
+      hasApiKey: !!apiKey,
+      apiKeyPrefix: apiKey ? apiKey.substring(0, 7) + "..." : "none",
+      audioSize: audioData.size,
+      audioType: audioData.type
+    });
     
     if (!apiKey) {
       console.warn("No OpenAI API key provided. Falling back to simulation mode.");
@@ -69,6 +83,7 @@ export async function transcribeAudio(
     console.log(`Transcribing audio with language: ${fullConfig.language}, model: ${fullConfig.model}`);
     
     // Call OpenAI Whisper API
+    console.log('Sending request to OpenAI Whisper API...');
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -76,6 +91,8 @@ export async function transcribeAudio(
       },
       body: formData
     });
+    
+    console.log('Whisper API response status:', response.status);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -102,6 +119,10 @@ export async function transcribeAudio(
     }
     
     const result = await response.json();
+    console.log('Whisper API success:', {
+      textLength: result.text?.length || 0,
+      textPreview: result.text?.substring(0, 100) + "..."
+    });
     
     return {
       text: result.text,
