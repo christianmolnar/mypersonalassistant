@@ -213,18 +213,6 @@ INSTRUCCIONES CRÍTICAS:
 5. Solo mejora la transición donde agregas el nuevo detalle
 
 Devuelve SOLO la historia original con el nuevo detalle integrado naturalmente, sin agregar contenido inventado.`;
-    } else if (type === 'conversation') {
-      // New type for conversational responses (greeting responses, general chat)
-      const { conversationContext, userName } = req.body;
-      systemMessage = 'Eres un asistente cálido y empático de Memorias AI que ayuda a los usuarios a grabar sus historias personales. Siempre respondes en español argentino con un tono amigable y personal.';
-      prompt = `El usuario acaba de responder: "${story}"
-
-Contexto: ${conversationContext || 'respuesta_saludo_inicial'}
-Nombre del usuario: ${userName || 'querido'}
-
-Responde de manera natural y cálida en español argentino, reconociendo lo que dijeron y guiándolos gentilmente hacia completar su información personal y comenzar a grabar su historia. Mantén un tono conversacional y empático.
-
-Respuesta breve (máximo 2 oraciones):`;
     }
 
     // Call OpenAI API
@@ -451,16 +439,6 @@ function generateFallbackMessage(type: string, res: NextApiResponse, fallbackDat
   } else if (type === 'integrate_details') {
     // For integrate_details, return the original story since we can't integrate without AI
     return res.status(200).json({ integratedStory: fallbackData?.story || 'Historia original.' });
-  } else if (type === 'conversation') {
-    // Conversational fallback responses in Spanish
-    const conversationMessages = [
-      'Te escuché perfectamente, Cristian. Cuando estés listo, completá tu información arriba y presioná "Grabar Historia".',
-      '¡Hola! Me encanta conocerte. Para comenzar con tu historia, llená los datos personales de arriba.',
-      'Perfecto. Ahora completá tu nombre, edad y lugar arriba, y después podemos empezar a grabar.',
-      'Te entiendo. Asegurate de llenar toda la información personal y luego podemos comenzar tu relato.',
-      '¡Genial! Completá los campos de arriba (nombre, edad, lugar) y después grabamos tu historia.'
-    ];
-    message = conversationMessages[Math.floor(Math.random() * conversationMessages.length)];
   }
 
   return res.status(200).json({ message });

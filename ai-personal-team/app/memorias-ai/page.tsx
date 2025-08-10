@@ -318,6 +318,7 @@ export default function MemoriasAIPage() {
   const [eventLocation, setEventLocation] = useState('');
   const [storyAudioSegments, setStoryAudioSegments] = useState<Blob[]>([]);
   const [storyEmailSent, setStoryEmailSent] = useState(false);
+  const [lastSentToEmail, setLastSentToEmail] = useState(''); // Track which email was actually sent to
   const [showDownloadOffer, setShowDownloadOffer] = useState(false);
   const [isReturningUser, setIsReturningUser] = useState(false);
 
@@ -445,10 +446,9 @@ export default function MemoriasAIPage() {
   // Sync editable content with transcribed segments when they change
   useEffect(() => {
     const transcribedContent = storySegments.length > 0 ? storySegments.join('\n\n') : transcribedText;
-    if (transcribedContent && !editableStoryContent) {
-      setEditableStoryContent(transcribedContent);
-    }
-  }, [storySegments, transcribedText, editableStoryContent]);
+    // Always update with the latest transcribed content, even if empty (to clear the textarea)
+    setEditableStoryContent(transcribedContent || '');
+  }, [storySegments, transcribedText]);
 
   // Smart agent state management - detect manual form completion during conversation
   useEffect(() => {
@@ -827,9 +827,11 @@ export default function MemoriasAIPage() {
       
       setTranscribedText("Transcribiendo audio...");
       
-      // Try server API first since environment variables work better there
+      // Add timeout wrapper for all transcription attempts
+      const timeoutMs = 30000; // 30 seconds timeout
+      
       try {
-        console.log("Attempting server-side transcription...");
+        console.log("Attempting server-side transcription with timeout...");
         
         // Create a File object for more reliable server handling
         const timestamp = Date.now();
@@ -851,10 +853,18 @@ export default function MemoriasAIPage() {
         
         console.log("Sending audio to server-side API endpoint");
         
-        const response = await fetch('/api/transcribe-audio', {
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Transcription timeout')), timeoutMs);
+        });
+        
+        // Wrap fetch in timeout
+        const fetchPromise = fetch('/api/transcribe-audio', {
           method: 'POST',
           body: formData,
         });
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
@@ -879,6 +889,7 @@ export default function MemoriasAIPage() {
         setTranscribedText(formattedTranscription);
         
         // Track the last recording for discard functionality
+        console.log('🎯 SETTING lastRecordingText:', JSON.stringify(formattedTranscription));
         dispatch(recordingActions.setLastRecordingText(formattedTranscription));
         
         // Handle conversation flow based on current phase
@@ -890,126 +901,30 @@ export default function MemoriasAIPage() {
         
         return; // Exit early since server transcription worked
       } catch (serverError) {
-        console.warn("Server API transcription failed, trying direct approach:", serverError);
-      }
-      
-      // Fallback to direct transcription using the whisper_transcribe function
-      try {
-        console.log("Attempting direct transcription with Whisper API...");
+        console.warn("Server API transcription failed:", serverError);
         
-        // Create a filename that indicates the format
-        const fileName = `recording-${Date.now()}.mp3`;
-        
-        // Call the transcription function directly
-        const result = await transcribeAudio(audioBlob, {
-          language: 'es',
-          model: 'whisper-1',
-          fileName: fileName
-        });
-        
-        console.log("Direct transcription successful:", result);
-        
-        // 🚨 ENHANCED ERROR HANDLING: Validate transcription result
-        if (isTranscriptionInvalid(result.text)) {
-          console.log("Invalid direct transcription result:", result.text);
-          setTranscribedText("No se pudo entender el audio");
+        // Check if it was a timeout
+        if (serverError instanceof Error && serverError.message === 'Transcription timeout') {
+          console.error("Transcription timed out after 30 seconds");
+          setTranscribedText("La transcripción tardó demasiado. Intenta de nuevo.");
           await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
           return;
         }
         
-        const formattedText = formatStoryText(result.text);
-        setTranscribedText(formattedText);
-        
-        // Track the last recording for discard functionality
-        dispatch(recordingActions.setLastRecordingText(formattedText));
-        
-        // Handle conversation flow based on current phase
-        if (state.agent.conversationPhase === 'info_gathering') {
-          await processInfoGatheringResponse(result.text);
-        } else if (state.agent.conversationPhase === 'storytelling') {
-          await analyzeStoryAndRespond(result.text);
-        }
-        
-        return; // Exit early since direct transcription worked
-      } catch (directError) {
-        console.warn("Direct transcription failed, falling back to server API:", directError);
-      }
-      
-      // Fallback to server API approach
-      try {
-        // Create a File object for more reliable server handling
-        const timestamp = Date.now();
-        const audioFile = new File(
-          [audioBlob], 
-          `recording-${timestamp}.mp3`, 
-          { type: 'audio/mp3', lastModified: timestamp }
-        );
-        
-        console.log("Created audio file for server API:", {
-          name: audioFile.name,
-          size: audioFile.size,
-          type: audioFile.type
-        });
-        
-        // Set up form data with the File object
-        const formData = new FormData();
-        formData.append('audio', audioFile);
-        
-        // Add some basic debugging info
-        formData.append('originalType', audioBlob.type);
-        formData.append('timestamp', timestamp.toString());
-        
-        console.log("Sending audio to server-side API endpoint");
-        
-        const response = await fetch('/api/transcribe-audio', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-          console.error("Server returned error:", errorData);
-          throw new Error(`Server error: ${errorData.error || 'Unknown error'}`);
-        }
-        
-        const transcriptionResult = await response.json();
-        const transcription = transcriptionResult.text;
-        
-        console.log("Received fallback transcription:", transcription);
-        
-        // 🚨 ENHANCED ERROR HANDLING: Validate fallback transcription result
-        if (isTranscriptionInvalid(transcription)) {
-          console.log("Invalid fallback transcription result:", transcription);
-          setTranscribedText("No se pudo entender el audio");
-          await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
-          return;
-        }
-        
-        const formattedTranscription = formatStoryText(transcription);
-        setTranscribedText(formattedTranscription);
-        
-        // Handle conversation flow based on current phase
-        if (state.agent.conversationPhase === 'info_gathering') {
-          await processInfoGatheringResponse(transcription);
-        } else if (state.agent.conversationPhase === 'storytelling') {
-          await analyzeStoryAndRespond(transcription);
-        }
-      } catch (serverError) {
-        console.error("Fallback server API transcription error:", serverError);
-        
-        // 🚨 ENHANCED ERROR HANDLING: Final fallback with retry message
-        setTranscribedText("Error de transcripción");
+        // For other server errors, show generic error and allow retry
+        console.error("Server transcription failed:", serverError);
+        setTranscribedText("Error en la transcripción. Intenta de nuevo.");
         await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
+        return;
       }
-    } catch (error) {
-      console.error("Error transcribing audio:", error);
       
-      // 🚨 ENHANCED ERROR HANDLING: Provide specific error messages and retry
-      setTranscribedText("Error de transcripción");
+    } catch (error) {
+      console.error("Transcription process error:", error);
+      setTranscribedText("Error en la transcripción. Intenta de nuevo.");
       await handleTranscriptionRetry(state.agent.conversationPhase as 'info_gathering' | 'storytelling');
     }
   };
-  
+
   // 🚨 ERROR HANDLING UTILITIES
   // Check if audio recording is too short or empty
   const isRecordingTooShort = (audioBlob: Blob, recordingDuration: number): boolean => {
@@ -1404,7 +1319,7 @@ export default function MemoriasAIPage() {
     
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(state.userProfile.storytellerEmail)) {
+    if (!emailRegex.test(storytellerEmail)) {
       alert('Por favor, ingrese una dirección de email válida.');
       return;
     }
@@ -1412,55 +1327,98 @@ export default function MemoriasAIPage() {
     dispatch(uiActions.setIsEmailSending(true));
     
     try {
-      const emailContent = `Hola ${state.userProfile.storytellerName},
+      // Create HTML email content with proper formatting
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Georgia, serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #8B4513; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo { color: #8B4513; font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+            .subtitle { color: #666; font-style: italic; }
+            .story-title { background: linear-gradient(135deg, #8B4513, #A0522D); color: white; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0; font-size: 18px; font-weight: bold; }
+            .story-content { background: #f9f7f4; padding: 25px; border-left: 4px solid #8B4513; margin: 20px 0; border-radius: 4px; white-space: pre-wrap; }
+            .metadata { background: #f0f0f0; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .metadata h3 { color: #8B4513; margin-top: 0; }
+            .metadata ul { list-style: none; padding: 0; }
+            .metadata li { padding: 5px 0; border-bottom: 1px solid #ddd; }
+            .metadata li:last-child { border-bottom: none; }
+            .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">Memorias AI</div>
+            <div class="subtitle">Preservando historias, conectando generaciones</div>
+          </div>
+          
+          <p>Hola <strong>${state.userProfile.storytellerName}</strong>,</p>
+          
+          <p>Aquí está tu historia transcrita, cuidadosamente capturada y preservada:</p>
+          
+          ${state.userProfile.storyTitle ? `<div class="story-title">${state.userProfile.storyTitle}</div>` : ''}
+          
+          <div class="story-content">${formatStoryText(fullStoryContent)}</div>
+          
+          <div class="metadata">
+            <h3>Contexto de la Historia</h3>
+            <ul>
+              <li><strong>Narrador:</strong> ${state.userProfile.storytellerName}</li>
+              <li><strong>Email:</strong> ${storytellerEmail}</li>
+              ${state.userProfile.storyTitle ? `<li><strong>Título:</strong> ${state.userProfile.storyTitle}</li>` : ''}
+              <li><strong>Edad durante los eventos:</strong> ${state.userProfile.ageAtEvents}</li>
+              <li><strong>Lugar donde ocurrieron:</strong> ${state.userProfile.eventLocation}</li>
+              <li><strong>Fecha de grabación:</strong> ${new Date().toLocaleDateString('es-ES')}</li>
+            </ul>
+          </div>
+          
+          <div class="footer">
+            <p>Esta historia fue capturada y transcrita usando <strong>Memorias AI</strong>.</p>
+            <p>Gracias por confiar en nosotros para preservar tus recuerdos.</p>
+            <p style="margin-top: 20px;"><em>El equipo de Memorias AI</em></p>
+          </div>
+        </body>
+        </html>
+      `;
 
-Aquí está tu historia transcrita de Memorias AI:
-
----
-${state.userProfile.storyTitle ? `TÍTULO: ${state.userProfile.storyTitle}\n\n` : ''}${formatStoryText(fullStoryContent)}
-
----
-
-Contexto de la historia:
-- Narrador: ${state.userProfile.storytellerName}
-- Email: ${storytellerEmail}${state.userProfile.storyTitle ? `\n- Título: ${state.userProfile.storyTitle}` : ''}
-- Edad durante los eventos: ${state.userProfile.ageAtEvents}
-- Lugar donde ocurrieron: ${state.userProfile.eventLocation}
-- Fecha de grabación: ${new Date().toLocaleDateString('es-ES')}
-
-Esta historia fue capturada y transcrita usando Memorias AI.
-
-Saludos,
-El equipo de Memorias AI`;
-
-      // Formspree endpoint - you'll need to replace this with your actual endpoint
-      const formspreeEndpoint = process.env.NEXT_PUBLIC_FORMSPREE_ENDPOINT || 'https://formspree.io/f/YOUR_FORM_ID';
-      
-      const response = await fetch(formspreeEndpoint, {
+      // Use our new Resend API endpoint instead of Formspree
+      const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: storytellerEmail,
+          to: storytellerEmail,
           subject: 'Tu Historia de Memorias AI',
-          message: emailContent,
-          _replyto: storytellerEmail,
-          _subject: 'Tu Historia de Memorias AI'
+          html: htmlContent
         }),
       });
 
       if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Email sent successfully via Resend:', result);
+        
         setStoryEmailSent(true);
+        setLastSentToEmail(storytellerEmail); // Track which email was sent to
         setShowDownloadOffer(true);
+        
         // Don't alert immediately, let the agent speak
         if (storyAudioSegments.length > 0) {
-          speakAgentMessage("Te envié la historia por email. ¿Te gustaría descargar tu audio, o puedes hacer clic en 'Nueva Historia' para empezar una nueva?");
+          speakAgentMessage(`Te envié la historia por email a ${storytellerEmail}. ¿Te gustaría descargar tu audio, o puedes hacer clic en 'Nueva Historia' para empezar una nueva?`);
         } else {
-          alert(`¡Historia enviada exitosamente a ${state.userProfile.storytellerEmail}!`);
+          alert(`¡Historia enviada exitosamente a ${storytellerEmail}!`);
         }
       } else {
-        throw new Error(`Error del servidor: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Email API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData: errorData,
+          email: storytellerEmail
+        });
+        throw new Error(errorData.error || `Error del servidor: ${response.status}`);
       }
       
     } catch (error) {
@@ -1574,6 +1532,8 @@ El equipo de Memorias AI`;
     
     // Reset email states but keep email and user info (we'll ask what to change)
     dispatch(uiActions.setStoryEmailSent(false));
+    setStoryEmailSent(false);
+    setLastSentToEmail('');
     dispatch(uiActions.setShowDownloadOffer(false));
     dispatch(uiActions.setIsEmailSending(false));
     
@@ -1833,35 +1793,93 @@ El equipo de Memorias AI`;
             </button>
 
             {/* Descartar Última Button - Only show if there's a last recording */}
-            {state.recording.lastRecordingText && (
+            {(() => {
+              const shouldShowButton = !!state.recording.lastRecordingText;
+              console.log('🔍 DISCARD BUTTON VISIBILITY CHECK:');
+              console.log('  - state.recording.lastRecordingText:', JSON.stringify(state.recording.lastRecordingText));
+              console.log('  - shouldShowButton:', shouldShowButton);
+              console.log('  - storySegments:', JSON.stringify(storySegments));
+              console.log('  - storySegments.length:', storySegments.length);
+              
+              return shouldShowButton;
+            })() && (
               <button 
                 onClick={() => {
-                  // Discard the last recording
+                  console.log('🗑️ DISCARD LAST - Starting debug analysis...');
+                  
+                  // Find and remove the last recording from story segments
+                  const lastRecordingText = state.recording.lastRecordingText;
+                  
+                  console.log('🔍 Current state analysis:');
+                  console.log('  - lastRecordingText:', JSON.stringify(lastRecordingText));
+                  console.log('  - storySegments:', JSON.stringify(storySegments));
+                  console.log('  - storySegments.length:', storySegments.length);
+                  console.log('  - transcribedText:', JSON.stringify(transcribedText));
+                  console.log('  - editableStoryContent:', JSON.stringify(editableStoryContent));
+                  console.log('  - fullStoryContent:', JSON.stringify(fullStoryContent));
+                  
+                  if (lastRecordingText && storySegments.length > 0) {
+                    // Find the last occurrence of the lastRecordingText in storySegments
+                    const lastIndex = storySegments.lastIndexOf(lastRecordingText);
+                    console.log('  - lastIndex found:', lastIndex);
+                    console.log('  - Looking for text:', JSON.stringify(lastRecordingText));
+                    console.log('  - In array:', JSON.stringify(storySegments));
+                    
+                    if (lastIndex !== -1) {
+                      console.log('✅ Found segment to remove at index:', lastIndex);
+                      console.log('  - Segment to remove:', JSON.stringify(storySegments[lastIndex]));
+                      
+                      // Remove only that specific segment
+                      setStorySegments(prev => {
+                        const newSegments = [...prev];
+                        console.log('  - Before removal:', JSON.stringify(prev));
+                        newSegments.splice(lastIndex, 1);
+                        console.log('  - After removal:', JSON.stringify(newSegments));
+                        return newSegments;
+                      });
+                      
+                      // Remove the corresponding audio segment
+                      if (storyAudioSegments.length > lastIndex) {
+                        console.log('  - Removing corresponding audio segment at index:', lastIndex);
+                        setStoryAudioSegments(prev => {
+                          const newAudioSegments = [...prev];
+                          newAudioSegments.splice(lastIndex, 1);
+                          return newAudioSegments;
+                        });
+                      } else {
+                        console.log('  - No audio segment to remove (index out of bounds)');
+                      }
+                    } else {
+                      console.log('❌ Could not find lastRecordingText in storySegments');
+                      console.log('  - Exact match search failed for:', JSON.stringify(lastRecordingText));
+                      console.log('  - Available segments:');
+                      storySegments.forEach((segment, index) => {
+                        console.log(`    [${index}]: ${JSON.stringify(segment)}`);
+                        console.log(`    Match check: ${segment === lastRecordingText ? 'YES' : 'NO'}`);
+                      });
+                    }
+                  } else {
+                    console.log('❌ Conditions not met for removal:');
+                    console.log('  - lastRecordingText exists:', !!lastRecordingText);
+                    console.log('  - storySegments.length > 0:', storySegments.length > 0);
+                  }
+                  
+                  // Clear the last recording tracking
+                  console.log('🧹 Clearing lastRecordingText and audioURL');
                   dispatch(recordingActions.setLastRecordingText(null));
                   dispatch(recordingActions.setAudioURL(null));
                   
-                  // Remove the last segment from story segments if it exists
-                  if (storySegments.length > 0) {
-                    const lastSegment = storySegments[storySegments.length - 1];
-                    if (lastSegment === state.recording.lastRecordingText) {
-                      setStorySegments(prev => prev.slice(0, -1));
-                      // Update editable content to reflect the change
-                      const updatedSegments = storySegments.slice(0, -1);
-                      setEditableStoryContent(updatedSegments.join('\n\n'));
-                    }
-                  }
-                  
-                  // Also remove the last audio segment if it exists
-                  if (storyAudioSegments.length > 0) {
-                    setStoryAudioSegments(prev => prev.slice(0, -1));
-                  }
-                  
                   // Clear transcribed text if it matches the last recording
-                  if (transcribedText === state.recording.lastRecordingText) {
+                  if (transcribedText === lastRecordingText) {
+                    console.log('🧹 Clearing transcribedText (matched lastRecordingText)');
                     setTranscribedText(null);
+                  } else {
+                    console.log('ℹ️ Not clearing transcribedText (different from lastRecordingText)');
+                    console.log('  - transcribedText:', JSON.stringify(transcribedText));
+                    console.log('  - lastRecordingText:', JSON.stringify(lastRecordingText));
                   }
                   
-                  console.log('🗑️ Last recording discarded');
+                  console.log('🗑️ Last recording discard attempt completed');
                 }}
                 style={{
                   backgroundColor: '#f39c12',
@@ -2317,7 +2335,15 @@ El equipo de Memorias AI`;
                 <input
                   type="email"
                   value={storytellerEmail}
-                  onChange={(e) => setStorytellerEmail(e.target.value)}
+                  onChange={(e) => {
+                    const newEmail = e.target.value;
+                    setStorytellerEmail(newEmail);
+                    
+                    // Reset "sent" status if user changes the email address
+                    if (storyEmailSent && newEmail !== lastSentToEmail) {
+                      setStoryEmailSent(false);
+                    }
+                  }}
                   placeholder="tu@email.com"
                   style={{
                     padding: '0.5rem',
@@ -2353,7 +2379,7 @@ El equipo de Memorias AI`;
                   flexWrap: 'wrap' 
                 }}>
                   <div style={{ color: '#27ae60', fontWeight: 'bold' }}>
-                    ✅ Historia enviada exitosamente a {storytellerEmail}
+                    ✅ Historia enviada exitosamente a {lastSentToEmail}
                   </div>
                   <button 
                     onClick={sendStoryByEmail}
