@@ -32,11 +32,15 @@ interface LocalizedStrings {
   NAME_LABEL: string;
   AGE_LABEL: string;
   LOCATION_LABEL: string;
+  STORY_TITLE_LABEL?: string;
   NAME_PLACEHOLDER: string;
   AGE_PLACEHOLDER: string;
   LOCATION_PLACEHOLDER: string;
+  STORY_TITLE_PLACEHOLDER?: string;
+  TELL_STORY_BUTTON?: string;
   CONTINUE_BUTTON: string;
   EDIT_INFO_BUTTON: string;
+  DISCARD_LAST_BUTTON?: string;
 }
 
 const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
@@ -53,11 +57,15 @@ const localizedStrings: Record<SupportedLanguage, LocalizedStrings> = {
     NAME_LABEL: "Nombre",
     AGE_LABEL: "Edad en los eventos",
     LOCATION_LABEL: "Lugar de la historia",
+    STORY_TITLE_LABEL: "Título de la historia",
     NAME_PLACEHOLDER: "Dime tu nombre...",
     AGE_PLACEHOLDER: "¿Qué edad tenías cuando ocurrieron estos eventos?",
     LOCATION_PLACEHOLDER: "¿Dónde ocurrió esta historia?",
+    STORY_TITLE_PLACEHOLDER: "Dale un título a tu historia...",
+    TELL_STORY_BUTTON: "🎙️ Contar mi Historia",
     CONTINUE_BUTTON: "Continuar con la historia",
-    EDIT_INFO_BUTTON: "Editar información"
+    EDIT_INFO_BUTTON: "Editar información",
+    DISCARD_LAST_BUTTON: "🗑️ Descartar Última"
   },
   en: {
     VOICE_SELECTION_TITLE: "Choose your guide to begin...",
@@ -277,15 +285,15 @@ const getLocalizedText = (
   language: SupportedLanguage, 
   variables?: Record<string, string>
 ): string => {
-  let text = localizedStrings[language]?.[key] || localizedStrings['es'][key]; // Fallback to Spanish
+  let text = localizedStrings[language]?.[key] || localizedStrings['es'][key] || key; // Fallback to Spanish or key name
   
-  if (variables) {
+  if (variables && text) {
     Object.entries(variables).forEach(([varKey, value]) => {
-      text = text.replace(`{${varKey}}`, value);
+      text = text!.replace(`{${varKey}}`, value);
     });
   }
   
-  return text;
+  return text || key;
 };
 
 export default function MemoriasAIPage() {
@@ -303,6 +311,7 @@ export default function MemoriasAIPage() {
   const silenceTimer = useRef<NodeJS.Timeout | null>(null);
   const [lastTranscriptionTime, setLastTranscriptionTime] = useState<number>(0);
   const [storySegments, setStorySegments] = useState<string[]>([]);
+  const [editableStoryContent, setEditableStoryContent] = useState<string>('');
   const [storytellerName, setStorytellerName] = useState('');
   const [storytellerEmail, setStorytellerEmail] = useState('');
   const [ageAtEvents, setAgeAtEvents] = useState('');
@@ -385,15 +394,32 @@ export default function MemoriasAIPage() {
     };
   }, []);
 
-  // Automatic transition to storytelling when all profile fields are filled
+  // Automatic transition to storytelling when all profile fields are filled with minimum requirements
   useEffect(() => {
-    const hasAllInfo = state.userProfile.storytellerName && 
-                      state.userProfile.ageAtEvents && 
-                      state.userProfile.eventLocation;
+    const nameValid = state.userProfile.storytellerName.trim().length >= 3;
+    const ageValid = state.userProfile.ageAtEvents.trim().length >= 1; 
+    const locationValid = state.userProfile.eventLocation.trim().length >= 3; // Reduced from 6 to 3
+    const titleValid = (state.userProfile.storyTitle?.trim().length || 0) >= 3; // Reduced from 6 to 3
+    const hasAllInfo = nameValid && ageValid && locationValid && titleValid;
+    
+    console.log('🔍 Form validation check:', {
+      name: state.userProfile.storytellerName.trim(),
+      nameValid,
+      age: state.userProfile.ageAtEvents.trim(),
+      ageValid,
+      location: state.userProfile.eventLocation.trim(),
+      locationValid,
+      title: state.userProfile.storyTitle?.trim() || '',
+      titleValid,
+      hasAllInfo,
+      phase: state.agent.conversationPhase
+    });
     
     if (hasAllInfo && state.agent.conversationPhase === 'info_gathering') {
+      console.log('✅ All fields valid, starting transition timer...');
       // Add a small delay to prevent premature transition while typing
       const transitionTimer = setTimeout(() => {
+        console.log('🚀 Transitioning to storytelling phase...');
         // Mark as returning user
         dispatch(userProfileActions.setIsReturningUser(true));
         
@@ -401,14 +427,114 @@ export default function MemoriasAIPage() {
         dispatch(agentActions.setConversationPhase('storytelling'));
         
         // Agent confirms the information and asks to begin story
-        const confirmationMessage = `Perfecto, ${state.userProfile.storytellerName}. Tienes ${state.userProfile.ageAtEvents} años en esta historia que ocurrió en ${state.userProfile.eventLocation}. Ahora puedes grabar tu historia usando los botones de abajo.`;
+        const confirmationMessage = `Perfecto, ${state.userProfile.storytellerName}. Tienes ${state.userProfile.ageAtEvents} años en esta historia "${state.userProfile.storyTitle}" que ocurrió en ${state.userProfile.eventLocation}. Ahora puedes grabar tu historia usando los botones de abajo.`;
         speakAgentMessage(confirmationMessage);
       }, 1500); // Wait 1.5 seconds before transitioning
       
       // Cleanup function to cancel the timer if component unmounts or dependencies change
-      return () => clearTimeout(transitionTimer);
+      return () => {
+        console.log('🔄 Clearing transition timer');
+        clearTimeout(transitionTimer);
+      };
     }
-  }, [state.userProfile.storytellerName, state.userProfile.ageAtEvents, state.userProfile.eventLocation, state.agent.conversationPhase]);
+  }, [state.userProfile.storytellerName, state.userProfile.ageAtEvents, state.userProfile.eventLocation, state.userProfile.storyTitle, state.agent.conversationPhase]);
+
+  // Compute the full story content from all segments or use editable version
+  const fullStoryContent = editableStoryContent || (storySegments.length > 0 ? storySegments.join('\n\n') : transcribedText);
+
+  // Sync editable content with transcribed segments when they change
+  useEffect(() => {
+    const transcribedContent = storySegments.length > 0 ? storySegments.join('\n\n') : transcribedText;
+    if (transcribedContent && !editableStoryContent) {
+      setEditableStoryContent(transcribedContent);
+    }
+  }, [storySegments, transcribedText, editableStoryContent]);
+
+  // Smart agent state management - detect manual form completion during conversation
+  useEffect(() => {
+    // Only apply this logic during info gathering phase
+    if (state.agent.conversationPhase !== 'info_gathering') return;
+    
+    const currentStep = state.agent.infoGatheringStep;
+    const isAwaitingResponse = state.agent.awaitingUserResponse;
+    const lastInputMethod = state.agent.lastInputMethod;
+    
+    // Check if the current step's field has been manually filled
+    let fieldCompleted = false;
+    let nextStep: any = null;
+    
+    switch (currentStep) {
+      case 'name':
+        fieldCompleted = state.userProfile.storytellerName.trim().length >= 3;
+        nextStep = 'age';
+        break;
+      case 'age':
+        fieldCompleted = state.userProfile.ageAtEvents.trim().length >= 1;
+        nextStep = 'location';
+        break;
+      case 'location':
+        fieldCompleted = state.userProfile.eventLocation.trim().length >= 3; // Reduced from 6 to 3
+        nextStep = 'title';
+        break;
+      case 'title':
+        fieldCompleted = (state.userProfile.storyTitle?.trim().length || 0) >= 3; // Reduced from 6 to 3
+        nextStep = 'completed';
+        break;
+    }
+    
+    // If the agent is waiting for a response but the user has manually filled the current field
+    if (isAwaitingResponse && fieldCompleted && currentStep !== 'completed' && currentStep !== 'returning_user_check') {
+      console.log(`🤖 Smart detection: User filled ${currentStep} field via ${lastInputMethod}, advancing to ${nextStep}`);
+      
+      // Stop waiting for user response
+      dispatch(agentActions.receiveUserResponse());
+      
+      // Advance to next step or complete
+      if (nextStep === 'completed') {
+        // All fields are done, move to storytelling
+        dispatch(agentActions.setInfoGatheringStep('completed'));
+        dispatch(agentActions.setConversationPhase('storytelling'));
+        
+        // Only speak confirmation if the last input was NOT manual typing
+        if (lastInputMethod !== 'manual') {
+          const confirmationMessage = `Perfecto, ${state.userProfile.storytellerName}. Ya tengo toda la información. Tienes ${state.userProfile.ageAtEvents} años en esta historia "${state.userProfile.storyTitle}" que ocurrió en ${state.userProfile.eventLocation}. Ahora puedes grabar tu historia usando los botones de abajo.`;
+          speakAgentMessage(confirmationMessage);
+        }
+      } else {
+        // Move to next step and ask next question
+        dispatch(agentActions.setInfoGatheringStep(nextStep));
+        
+        // Only ask next question if the last input was NOT manual typing
+        if (lastInputMethod !== 'manual') {
+          let nextQuestion = '';
+          switch (nextStep) {
+            case 'age':
+              nextQuestion = `Perfecto, ${state.userProfile.storytellerName}. Ahora, ¿qué edad tenías cuando ocurrieron los eventos de esta historia que me vas a contar?`;
+              break;
+            case 'location':
+              nextQuestion = `Muy bien. ¿En qué lugar ocurrieron estos eventos que me vas a narrar?`;
+              break;
+            case 'title':
+              nextQuestion = `Muy bien. Ahora, ¿qué título le darías a esta historia que me vas a contar?`;
+              break;
+          }
+          
+          if (nextQuestion) {
+            speakAgentMessage(nextQuestion);
+          }
+        }
+      }
+    }
+  }, [
+    state.agent.conversationPhase,
+    state.agent.infoGatheringStep,
+    state.agent.awaitingUserResponse,
+    state.agent.lastInputMethod,
+    state.userProfile.storytellerName,
+    state.userProfile.ageAtEvents,
+    state.userProfile.eventLocation,
+    state.userProfile.storyTitle
+  ]);
 
   // Enhanced button state management with internationalization
   const getRecordingButtonState = () => {
@@ -478,10 +604,15 @@ export default function MemoriasAIPage() {
   };
 
   const startRecording = async () => {
-    // For storytelling phase, ensure we have all required info
+    // For storytelling phase, ensure we have all required info with minimum lengths
     if (state.agent.conversationPhase === 'storytelling') {
-      if (!state.userProfile.storytellerName.trim() || !state.userProfile.ageAtEvents.trim() || !state.userProfile.eventLocation.trim()) {
-        alert('Faltan datos del narrador. Por favor complete la información primero.');
+      const nameValid = state.userProfile.storytellerName.trim().length >= 3;
+      const ageValid = state.userProfile.ageAtEvents.trim().length >= 1;
+      const locationValid = state.userProfile.eventLocation.trim().length >= 3; // Reduced from 6 to 3
+      const titleValid = (state.userProfile.storyTitle?.trim().length || 0) >= 3; // Reduced from 6 to 3
+      
+      if (!nameValid || !ageValid || !locationValid || !titleValid) {
+        alert('Por favor complete toda la información requerida:\n- Nombre (mínimo 3 caracteres)\n- Edad (al menos 1 dígito)\n- Lugar (mínimo 3 caracteres)\n- Título (mínimo 3 caracteres)');
         return;
       }
     }
@@ -492,9 +623,9 @@ export default function MemoriasAIPage() {
     // Reset states
     dispatch(recordingActions.clearAudioChunks());
     dispatch(recordingActions.setAudioURL(null));
-    if (state.agent.conversationPhase === 'storytelling') {
-      setTranscribedText(null); // Only reset transcription for storytelling
-    }    try {
+    // Note: Don't reset transcribedText during storytelling to preserve accumulated content
+    
+    try {
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -747,6 +878,9 @@ export default function MemoriasAIPage() {
         const formattedTranscription = formatStoryText(transcription);
         setTranscribedText(formattedTranscription);
         
+        // Track the last recording for discard functionality
+        dispatch(recordingActions.setLastRecordingText(formattedTranscription));
+        
         // Handle conversation flow based on current phase
         if (state.agent.conversationPhase === 'info_gathering') {
           await processInfoGatheringResponse(transcription);
@@ -785,6 +919,9 @@ export default function MemoriasAIPage() {
         
         const formattedText = formatStoryText(result.text);
         setTranscribedText(formattedText);
+        
+        // Track the last recording for discard functionality
+        dispatch(recordingActions.setLastRecordingText(formattedText));
         
         // Handle conversation flow based on current phase
         if (state.agent.conversationPhase === 'info_gathering') {
@@ -1131,23 +1268,34 @@ export default function MemoriasAIPage() {
           dispatch(agentActions.setInfoGatheringStep('location'));
           const locationMessage = `Perfecto. ¿En qué lugar ocurrieron los eventos de esta nueva historia?`;
           await speakAgentMessage(locationMessage);
-        } else if (lowerTranscription.includes('ambos') || lowerTranscription.includes('los dos') || (lowerTranscription.includes('edad') && lowerTranscription.includes('lugar'))) {
+        } else if (lowerTranscription.includes('título') || lowerTranscription.includes('cambiar título') || lowerTranscription.includes('titulo')) {
+          dispatch(agentActions.setInfoGatheringStep('title'));
+          const titleMessage = `Perfecto. ¿Qué título le darías a esta nueva historia?`;
+          await speakAgentMessage(titleMessage);
+        } else if (lowerTranscription.includes('ambos') || lowerTranscription.includes('los dos') || lowerTranscription.includes('todo')) {
           dispatch(agentActions.setInfoGatheringStep('age'));
-          const bothMessage = `Perfecto. Primero, ¿qué edad tenías cuando ocurrieron los eventos de esta nueva historia?`;
-          await speakAgentMessage(bothMessage);
+          const allMessage = `Perfecto. Vamos a actualizar toda la información. Primero, ¿qué edad tenías cuando ocurrieron los eventos de esta nueva historia?`;
+          await speakAgentMessage(allMessage);
         } else {
-          // User wants to keep the same data
-          dispatch(agentActions.setInfoGatheringStep('completed'));
-          dispatch(agentActions.setConversationPhase('storytelling'));
-          const readyMessage = `Perfecto, ${state.userProfile.storytellerName}. Mantenemos tu edad de ${state.userProfile.ageAtEvents} años y el lugar ${state.userProfile.eventLocation}. Ahora estoy listo para escuchar tu nueva historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
-          await speakAgentMessage(readyMessage);
-          dispatch(agentActions.receiveUserResponse());
+          // User wants to keep the same data but we need a title for new stories
+          if (!state.userProfile.storyTitle) {
+            dispatch(agentActions.setInfoGatheringStep('title'));
+            const titleMessage = `Perfecto, mantenemos tu información. Solo necesito que me digas el título de esta nueva historia.`;
+            await speakAgentMessage(titleMessage);
+          } else {
+            dispatch(agentActions.setInfoGatheringStep('completed'));
+            dispatch(agentActions.setConversationPhase('storytelling'));
+            const readyMessage = `Perfecto, ${state.userProfile.storytellerName}. Mantenemos tu edad de ${state.userProfile.ageAtEvents} años y el lugar ${state.userProfile.eventLocation}. Ahora estoy listo para escuchar tu nueva historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
+            await speakAgentMessage(readyMessage);
+            dispatch(agentActions.receiveUserResponse());
+          }
         }
         break;
         
       case 'name':
         // Extract name from transcription (simple approach)
         dispatch(userProfileActions.setStorytellerName(transcription.trim()));
+        dispatch(agentActions.setLastInputMethod('voice'));
         dispatch(agentActions.setInfoGatheringStep('age'));
         
         const ageMessage = `Perfecto, ${transcription.trim()}. Ahora, ¿qué edad tenías cuando ocurrieron los eventos de esta historia que me vas a contar?`;
@@ -1158,27 +1306,30 @@ export default function MemoriasAIPage() {
         // Extract numeric age from transcription
         const extractedAge = extractAgeFromText(transcription);
         dispatch(userProfileActions.setAgeAtEvents(extractedAge));
+        dispatch(agentActions.setLastInputMethod('voice'));
         
-        // If this is a returning user who only wanted to change age, go to storytelling
-        if (state.userProfile.isReturningUser) {
-          dispatch(agentActions.setInfoGatheringStep('completed'));
-          dispatch(agentActions.setConversationPhase('storytelling'));
-          const readyMessage = `Perfecto, ${state.userProfile.storytellerName}. Ahora con tu nueva edad de ${extractedAge} años y el lugar ${state.userProfile.eventLocation}. Estoy listo para escuchar tu nueva historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
-          await speakAgentMessage(readyMessage);
-          dispatch(agentActions.receiveUserResponse());
-        } else {
-          dispatch(agentActions.setInfoGatheringStep('location'));
-          const locationMessage = `Muy bien. ¿En qué lugar ocurrieron estos eventos que me vas a narrar?`;
-          await speakAgentMessage(locationMessage);
-        }
+        // Always continue to location step regardless of returning user status
+        dispatch(agentActions.setInfoGatheringStep('location'));
+        const locationMessage = `Muy bien. ¿En qué lugar ocurrieron estos eventos que me vas a narrar?`;
+        await speakAgentMessage(locationMessage);
         break;
         
       case 'location':
         dispatch(userProfileActions.setEventLocation(transcription.trim()));
+        dispatch(agentActions.setLastInputMethod('voice'));
+        dispatch(agentActions.setInfoGatheringStep('title'));
+        
+        const titleMessage = `Muy bien. Ahora, ¿qué título le darías a esta historia que me vas a contar?`;
+        await speakAgentMessage(titleMessage);
+        break;
+        
+      case 'title':
+        dispatch(userProfileActions.setStoryTitle(transcription.trim()));
+        dispatch(agentActions.setLastInputMethod('voice'));
         dispatch(agentActions.setInfoGatheringStep('completed'));
         dispatch(agentActions.setConversationPhase('storytelling'));
         
-        const readyMessage = `Perfecto, ${state.userProfile.storytellerName}. Ya tengo toda la información. Ahora estoy listo para escuchar tu historia sobre cuando tenías ${state.userProfile.ageAtEvents} años en ${transcription.trim()}. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme tu historia.`;
+        const readyMessage = `Perfecto, ${state.userProfile.storytellerName}. Ya tengo toda la información. Tienes ${state.userProfile.ageAtEvents} años en esta historia "${transcription.trim()}" que ocurrió en ${state.userProfile.eventLocation}. Ahora estoy listo para escuchar tu historia. Cuando estés listo, presiona 'Grabar Historia' y comienza a contarme.`;
         await speakAgentMessage(readyMessage);
         dispatch(agentActions.receiveUserResponse());
         break;
@@ -1236,7 +1387,7 @@ export default function MemoriasAIPage() {
 
   const sendStoryByEmail = async () => {
     // Validate required fields
-    if (!transcribedText) {
+    if (!fullStoryContent) {
       alert('No hay historia transcrita para enviar.');
       return;
     }
@@ -1266,14 +1417,13 @@ export default function MemoriasAIPage() {
 Aquí está tu historia transcrita de Memorias AI:
 
 ---
-
-${formatStoryText(transcribedText)}
+${state.userProfile.storyTitle ? `TÍTULO: ${state.userProfile.storyTitle}\n\n` : ''}${formatStoryText(fullStoryContent)}
 
 ---
 
 Contexto de la historia:
 - Narrador: ${state.userProfile.storytellerName}
-- Email: ${storytellerEmail}
+- Email: ${storytellerEmail}${state.userProfile.storyTitle ? `\n- Título: ${state.userProfile.storyTitle}` : ''}
 - Edad durante los eventos: ${state.userProfile.ageAtEvents}
 - Lugar donde ocurrieron: ${state.userProfile.eventLocation}
 - Fecha de grabación: ${new Date().toLocaleDateString('es-ES')}
@@ -1342,7 +1492,7 @@ El equipo de Memorias AI`;
   };
 
   const generateAgentQuestion = async () => {
-    if (!transcribedText) return;
+    if (!fullStoryContent) return;
     
     dispatch(agentActions.setIsGeneratingQuestion(true));
     
@@ -1354,7 +1504,7 @@ El equipo de Memorias AI`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          story: transcribedText,
+          story: fullStoryContent,
           type: 'encouragement',
           questionsAsked: state.agent.questionsAsked
         }),
@@ -1682,6 +1832,55 @@ El equipo de Memorias AI`;
               {state.recording.recording ? '🛑 Parar' : '🎙️ Grabar Historia'}
             </button>
 
+            {/* Descartar Última Button - Only show if there's a last recording */}
+            {state.recording.lastRecordingText && (
+              <button 
+                onClick={() => {
+                  // Discard the last recording
+                  dispatch(recordingActions.setLastRecordingText(null));
+                  dispatch(recordingActions.setAudioURL(null));
+                  
+                  // Remove the last segment from story segments if it exists
+                  if (storySegments.length > 0) {
+                    const lastSegment = storySegments[storySegments.length - 1];
+                    if (lastSegment === state.recording.lastRecordingText) {
+                      setStorySegments(prev => prev.slice(0, -1));
+                      // Update editable content to reflect the change
+                      const updatedSegments = storySegments.slice(0, -1);
+                      setEditableStoryContent(updatedSegments.join('\n\n'));
+                    }
+                  }
+                  
+                  // Also remove the last audio segment if it exists
+                  if (storyAudioSegments.length > 0) {
+                    setStoryAudioSegments(prev => prev.slice(0, -1));
+                  }
+                  
+                  // Clear transcribed text if it matches the last recording
+                  if (transcribedText === state.recording.lastRecordingText) {
+                    setTranscribedText(null);
+                  }
+                  
+                  console.log('🗑️ Last recording discarded');
+                }}
+                style={{
+                  backgroundColor: '#f39c12',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: 'clamp(0.8rem, 2.5vw, 0.9rem)',
+                  padding: '0.75rem 1.25rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseOver={(e) => (e.target as HTMLButtonElement).style.backgroundColor = '#e67e22'}
+                onMouseOut={(e) => (e.target as HTMLButtonElement).style.backgroundColor = '#f39c12'}
+              >
+                {getLocalizedText('DISCARD_LAST_BUTTON', state.ui.currentLanguage) || '🗑️ Descartar Última'}
+              </button>
+            )}
+
             {/* Center: Nueva Historia (Red - Reset Action) */}
             <button 
               onClick={() => {
@@ -1794,7 +1993,10 @@ El equipo de Memorias AI`;
                   <input
                     type="text"
                     value={state.userProfile.storytellerName}
-                    onChange={(e) => dispatch(userProfileActions.setStorytellerName(e.target.value))}
+                    onChange={(e) => {
+                      dispatch(userProfileActions.setStorytellerName(e.target.value));
+                      dispatch(agentActions.setLastInputMethod('manual'));
+                    }}
                     placeholder={getLocalizedText('NAME_PLACEHOLDER', state.ui.currentLanguage)}
                     style={{
                       flex: 1,
@@ -1843,7 +2045,10 @@ El equipo de Memorias AI`;
                   <input
                     type="text"
                     value={state.userProfile.ageAtEvents}
-                    onChange={(e) => dispatch(userProfileActions.setAgeAtEvents(e.target.value))}
+                    onChange={(e) => {
+                      dispatch(userProfileActions.setAgeAtEvents(e.target.value));
+                      dispatch(agentActions.setLastInputMethod('manual'));
+                    }}
                     placeholder={getLocalizedText('AGE_PLACEHOLDER', state.ui.currentLanguage)}
                     style={{
                       flex: 1,
@@ -1892,7 +2097,10 @@ El equipo de Memorias AI`;
                   <input
                     type="text"
                     value={state.userProfile.eventLocation}
-                    onChange={(e) => dispatch(userProfileActions.setEventLocation(e.target.value))}
+                    onChange={(e) => {
+                      dispatch(userProfileActions.setEventLocation(e.target.value));
+                      dispatch(agentActions.setLastInputMethod('manual'));
+                    }}
                     placeholder={getLocalizedText('LOCATION_PLACEHOLDER', state.ui.currentLanguage)}
                     style={{
                       flex: 1,
@@ -1922,41 +2130,172 @@ El equipo de Memorias AI`;
                   </div>
                 )}
               </div>
+
+              {/* Story Title Line */}
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem'
+              }}>
+                <span style={{ 
+                  color: '#ffb347', 
+                  fontSize: '0.9rem', 
+                  fontWeight: '500',
+                  minWidth: '80px'
+                }}>
+                  {getLocalizedText('STORY_TITLE_LABEL', state.ui.currentLanguage) || 'Título'}:
+                </span>
+                {state.agent.conversationPhase === 'info_gathering' ? (
+                  <input
+                    type="text"
+                    value={state.userProfile.storyTitle || ''}
+                    onChange={(e) => {
+                      dispatch(userProfileActions.setStoryTitle(e.target.value));
+                      dispatch(agentActions.setLastInputMethod('manual'));
+                    }}
+                    placeholder={getLocalizedText('STORY_TITLE_PLACEHOLDER', state.ui.currentLanguage) || 'Dale un título a tu historia...'}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      transition: 'border-color 0.3s ease'
+                    }}
+                    onFocus={(e) => (e.target as HTMLInputElement).style.borderColor = '#ffb347'}
+                    onBlur={(e) => (e.target as HTMLInputElement).style.borderColor = 'rgba(255, 255, 255, 0.2)'}
+                  />
+                ) : (
+                  <div style={{ 
+                    flex: 1,
+                    borderBottom: state.userProfile.storyTitle ? '1px solid #ffb347' : '1px dotted rgba(255, 255, 255, 0.3)',
+                    paddingBottom: '4px',
+                    color: state.userProfile.storyTitle ? '#fff' : 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.9rem',
+                    minHeight: '20px',
+                    fontStyle: state.userProfile.storyTitle ? 'normal' : 'italic'
+                  }}>
+                    {state.userProfile.storyTitle || getLocalizedText('STORY_TITLE_PLACEHOLDER', state.ui.currentLanguage) || 'Dale un título a tu historia...'}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
       )}
 
+      {/* Tell my Story button - appears when all fields are valid during info gathering */}
+      {state.agent.conversationPhase === 'info_gathering' && (() => {
+        const nameValid = state.userProfile.storytellerName.trim().length >= 3;
+        const ageValid = state.userProfile.ageAtEvents.trim().length >= 1;
+        const locationValid = state.userProfile.eventLocation.trim().length >= 3; // Reduced from 6 to 3
+        const titleValid = (state.userProfile.storyTitle?.trim().length || 0) >= 3; // Reduced from 6 to 3
+        const allFieldsValid = nameValid && ageValid && locationValid && titleValid;
+        
+        // Debug logging for button visibility
+        console.log('🔍 Button validation check:', {
+          name: `"${state.userProfile.storytellerName.trim()}" (${state.userProfile.storytellerName.trim().length}) - Valid: ${nameValid}`,
+          age: `"${state.userProfile.ageAtEvents.trim()}" (${state.userProfile.ageAtEvents.trim().length}) - Valid: ${ageValid}`,
+          location: `"${state.userProfile.eventLocation.trim()}" (${state.userProfile.eventLocation.trim().length}) - Valid: ${locationValid}`,
+          title: `"${state.userProfile.storyTitle?.trim() || ''}" (${(state.userProfile.storyTitle?.trim().length || 0)}) - Valid: ${titleValid}`,
+          allFieldsValid,
+          conversationPhase: state.agent.conversationPhase
+        });
+        
+        // Show button debug info always during info_gathering phase
+        return (
+          <section style={{
+            padding: '1rem',
+            margin: '1rem 0',
+            textAlign: 'center'
+          }}>
+            {allFieldsValid ? (
+              <button
+                onClick={async () => {
+                  console.log('🎯 Tell my Story button clicked - transitioning to storytelling');
+                  dispatch(agentActions.setInfoGatheringStep('completed'));
+                  dispatch(agentActions.setConversationPhase('storytelling'));
+                  
+                  const confirmationMessage = `Perfecto, ${state.userProfile.storytellerName}. Ya tengo toda la información. Tienes ${state.userProfile.ageAtEvents} años en esta historia "${state.userProfile.storyTitle}" que ocurrió en ${state.userProfile.eventLocation}. Ahora puedes grabar tu historia usando los botones de abajo.`;
+                  await speakAgentMessage(confirmationMessage);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #ff6b6b, #ff8e53)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 24px',
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 15px rgba(255, 107, 107, 0.3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 107, 107, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.3)';
+                }}
+              >
+                {getLocalizedText('TELL_STORY_BUTTON', state.ui.currentLanguage) || '🎙️ Contar mi Historia'}
+              </button>
+            ) : (
+              <div style={{ 
+                color: 'rgba(255, 255, 255, 0.6)', 
+                fontSize: '0.9rem',
+                fontStyle: 'italic'
+              }}>
+                📝 Complete todos los campos para continuar
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
       <main style={{ width: '100%' }}>
-        {/* Email and story management section */}
-        {transcribedText && (
+        {/* Story content section - only show after we have story content */}
+        {fullStoryContent && (
           <section className={styles.section}>
-            <h2 className={styles.sectionTitle}>Historia Completa</h2>
+            <h2 className={styles.sectionTitle}>
+              {state.userProfile.storyTitle || 'Tu Historia'}
+            </h2>
             
-            {/* Memo-style header with story information */}
-            <div style={{
-              backgroundColor: 'rgba(255, 179, 71, 0.1)',
-              border: '1px solid #ffb347',
-              borderRadius: '8px',
-              padding: '1rem',
-              marginBottom: '1rem',
-              fontSize: '0.9rem',
-              color: '#ccc'
+            {/* Editable story content area */}
+            <div style={{ 
+              position: 'relative',
+              marginBottom: '1rem'
             }}>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>Para:</strong> {storytellerName || 'Narrador'}
-              </div>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>De:</strong> Memorias AI
-              </div>
-              <div>
-                <strong>Fecha:</strong> {new Date().toLocaleDateString('es-ES')}
-              </div>
+              <textarea
+                value={fullStoryContent}
+                onChange={(e) => setEditableStoryContent(e.target.value)}
+                placeholder="Aquí aparecerá tu historia conforme la vayas narrando..."
+                style={{
+                  width: '100%',
+                  minHeight: '300px',
+                  padding: '1rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  lineHeight: '1.6',
+                  resize: 'vertical',
+                  outline: 'none',
+                  whiteSpace: 'pre-line',
+                  fontFamily: 'inherit'
+                }}
+                onFocus={(e) => (e.target as HTMLTextAreaElement).style.borderColor = '#ffb347'}
+                onBlur={(e) => (e.target as HTMLTextAreaElement).style.borderColor = 'rgba(255, 255, 255, 0.2)'}
+              />
             </div>
-            
-            <p className={styles.transcription} style={{ whiteSpace: 'pre-line' }}>
-              {transcribedText}
-            </p>
             
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
               {/* Email input field moved here, compact design */}
@@ -1996,11 +2335,11 @@ El equipo de Memorias AI`;
               {!storyEmailSent ? (
                 <button 
                   onClick={sendStoryByEmail}
-                  disabled={state.ui.isEmailSending}
+                  disabled={state.ui.isEmailSending || !fullStoryContent}
                   className={styles.button}
                   style={{ 
-                    backgroundColor: state.ui.isEmailSending ? '#95a5a6' : '#27ae60',
-                    cursor: state.ui.isEmailSending ? 'not-allowed' : 'pointer'
+                    backgroundColor: (state.ui.isEmailSending || !fullStoryContent) ? '#95a5a6' : '#27ae60',
+                    cursor: (state.ui.isEmailSending || !fullStoryContent) ? 'not-allowed' : 'pointer'
                   }}
                 >
                   {state.ui.isEmailSending ? '📧 Enviando...' : '📧 Enviame Mi Historia'}

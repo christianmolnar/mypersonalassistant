@@ -3,7 +3,7 @@
 
 // Type Definitions
 export type ConversationPhase = 'setup' | 'info_gathering' | 'storytelling' | 'completed';
-export type InfoGatheringStep = 'name' | 'age' | 'location' | 'returning_user_check' | 'completed';
+export type InfoGatheringStep = 'name' | 'age' | 'location' | 'title' | 'returning_user_check' | 'completed';
 export type AgentSpeechState = 'idle' | 'preparing' | 'speaking' | 'completed' | 'interrupted' | 'awaiting_user_response';
 export type SupportedLanguage = 'es' | 'en' | 'pt' | 'fr' | 'de' | 'it' | 'zh' | 'ja' | 'ko' | 'ar' | 'hi' | 'ru';
 
@@ -16,6 +16,7 @@ export interface RecordingState {
   audioMimeType: string;
   lastTranscriptionTime: number;
   detectedLanguage: SupportedLanguage | null;
+  lastRecordingText: string | null;
 }
 
 export interface AgentState {
@@ -33,6 +34,7 @@ export interface AgentState {
   infoGatheringStep: InfoGatheringStep;
   voicePreviewInProgress: boolean;
   hasAutoStarted: boolean;
+  lastInputMethod: 'voice' | 'manual' | null;
 }
 
 export interface UserProfileState {
@@ -40,6 +42,7 @@ export interface UserProfileState {
   storytellerEmail: string;
   ageAtEvents: string;
   eventLocation: string;
+  storyTitle: string;
   isReturningUser: boolean;
   profileHasBeenEdited: boolean;
 }
@@ -85,6 +88,7 @@ export type RecordingAction =
   | { type: 'SET_AUDIO_MIME_TYPE'; payload: string }
   | { type: 'ADD_AUDIO_CHUNK'; payload: Blob }
   | { type: 'CLEAR_AUDIO_CHUNKS' }
+  | { type: 'SET_LAST_RECORDING_TEXT'; payload: string | null }
   | { type: 'RESET_RECORDING' };
 
 export type AgentAction =
@@ -107,7 +111,8 @@ export type AgentAction =
   | { type: 'SET_CONVERSATION_PHASE'; payload: ConversationPhase }
   | { type: 'SET_INFO_GATHERING_STEP'; payload: InfoGatheringStep }
   | { type: 'SET_IS_GENERATING_QUESTION'; payload: boolean }
-  | { type: 'SET_AGENT_AUDIO'; payload: string | null };
+  | { type: 'SET_AGENT_AUDIO'; payload: string | null }
+  | { type: 'SET_LAST_INPUT_METHOD'; payload: 'voice' | 'manual' | null };
 
 export type UIAction =
   | { type: 'SET_LANGUAGE'; payload: SupportedLanguage }
@@ -120,6 +125,7 @@ export type UserProfileAction =
   | { type: 'SET_STORYTELLER_EMAIL'; payload: string }
   | { type: 'SET_AGE_AT_EVENTS'; payload: string }
   | { type: 'SET_EVENT_LOCATION'; payload: string }
+  | { type: 'SET_STORY_TITLE'; payload: string }
   | { type: 'SET_IS_RETURNING_USER'; payload: boolean }
   | { type: 'SET_PROFILE_EDITED'; payload: boolean };
 
@@ -150,6 +156,7 @@ export const initialState: MemoriasAIState = {
     audioMimeType: 'audio/webm',
     lastTranscriptionTime: 0,
     detectedLanguage: null,
+    lastRecordingText: null,
   },
   agent: {
     selectedVoice: null, // No pre-selection for guided experience
@@ -166,12 +173,14 @@ export const initialState: MemoriasAIState = {
     infoGatheringStep: 'name',
     voicePreviewInProgress: false,
     hasAutoStarted: false,
+    lastInputMethod: null,
   },
   userProfile: {
     storytellerName: '',
     storytellerEmail: '',
     ageAtEvents: '',
     eventLocation: '',
+    storyTitle: '',
     isReturningUser: false,
     profileHasBeenEdited: false,
   },
@@ -381,6 +390,15 @@ export function memoriasReducer(state: MemoriasAIState, action: MemoriasAIAction
         },
       };
 
+    case 'SET_LAST_INPUT_METHOD':
+      return {
+        ...state,
+        agent: {
+          ...state.agent,
+          lastInputMethod: action.payload,
+        },
+      };
+
     // Recording Actions (Basic implementation)
     case 'START_RECORDING':
       return {
@@ -442,6 +460,15 @@ export function memoriasReducer(state: MemoriasAIState, action: MemoriasAIAction
         recording: {
           ...state.recording,
           audioChunks: [],
+        },
+      };
+
+    case 'SET_LAST_RECORDING_TEXT':
+      return {
+        ...state,
+        recording: {
+          ...state.recording,
+          lastRecordingText: action.payload,
         },
       };
 
@@ -524,6 +551,15 @@ export function memoriasReducer(state: MemoriasAIState, action: MemoriasAIAction
         userProfile: {
           ...state.userProfile,
           eventLocation: action.payload,
+        },
+      };
+
+    case 'SET_STORY_TITLE':
+      return {
+        ...state,
+        userProfile: {
+          ...state.userProfile,
+          storyTitle: action.payload,
         },
       };
 
@@ -750,6 +786,11 @@ export const agentActions = {
     type: 'SET_AGENT_AUDIO',
     payload: audioUrl,
   }),
+
+  setLastInputMethod: (method: 'voice' | 'manual' | null): AgentAction => ({
+    type: 'SET_LAST_INPUT_METHOD',
+    payload: method,
+  }),
 };
 
 export const recordingActions = {
@@ -783,6 +824,11 @@ export const recordingActions = {
 
   clearAudioChunks: (): RecordingAction => ({
     type: 'CLEAR_AUDIO_CHUNKS',
+  }),
+
+  setLastRecordingText: (text: string | null): RecordingAction => ({
+    type: 'SET_LAST_RECORDING_TEXT',
+    payload: text,
   }),
 
   resetRecording: (): RecordingAction => ({
@@ -831,6 +877,11 @@ export const userProfileActions = {
   setEventLocation: (location: string): UserProfileAction => ({
     type: 'SET_EVENT_LOCATION',
     payload: location,
+  }),
+
+  setStoryTitle: (title: string): UserProfileAction => ({
+    type: 'SET_STORY_TITLE',
+    payload: title,
   }),
 
   setIsReturningUser: (isReturning: boolean): UserProfileAction => ({
