@@ -31,16 +31,23 @@ NOT the root `/Users/christian/Repos/MyPersonalAssistant` directory.
 
 ## Email System Information
 - **Email Service**: Resend API with key `re_6gEvmDWs_9vqzQexRotKu8FPnhxAz6mGe`
-- **Current Status**: In sandbox/testing mode - can only send to verified email addresses
+- **Current Status**: Domain verification in progress - Domain key ✅ verified, SPF/MX records pending propagation
 - **Verified Email**: `chrismolhome@hotmail.com` (Christian's email)
-- **Domain**: `memorias-ai.com` (owned but not verified with Resend due to Wix DNS limitations)
-- **Sender**: Using `onboarding@resend.dev` (Resend's default domain)
+- **Domain**: `memorias-ai.com` (owned and domain key verified with Resend)
+- **Sender**: Using `onboarding@resend.dev` (will switch to `stories@memorias-ai.com` after full verification)
+
+### DNS Configuration Status (August 10, 2025)
+- **Domain Key (resend._domainkey)**: ✅ Verified
+- **DMARC (_dmarc)**: ✅ Verified (`v=DMARC1; p=none;`)
+- **SPF (send subdomain)**: 🟡 Pending (`v=spf1 include:amazonses.com ~all`)
+- **MX (send subdomain)**: 🟡 Pending (feedback-smtp.us-east-1.amazonses.com)
+- **TTL**: 1 Hour (changes take up to 1 hour to propagate)
 
 ### Email Restrictions
-- Resend account is in testing mode and only allows emails to verified addresses
-- Error message: "You can only send testing emails to your own email address"
-- To fix: Need to verify the `memorias-ai.com` domain in Resend dashboard (requires DNS control)
-- Current workaround: Only `chrismolhome@hotmail.com` can receive emails
+- Resend account WAS in testing mode but domain verification appears to be progressing
+- Error message was: "You can only send testing emails to your own email address"
+- Current workaround: `chrismolhome@hotmail.com` confirmed working
+- Expected: Full email capability once SPF/MX records finish propagating
 
 ## Recent UX Improvements
 - **Storytelling Transition Enhancement** (August 10, 2025): Enhanced button behavior during agent transition from info gathering to storytelling phase. When agent speaks the confirmation message ("Ya tengo toda la información..."), the button now correctly shows "⏸️ Interrumpir" (red with pulse animation) instead of "Grabar Historia". When interrupted during this transition, recording automatically starts instead of requiring another button click.
