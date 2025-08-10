@@ -18,6 +18,12 @@ This guide will help you set up the complete Memorias AI application from scratc
 3. **Code Editor** (recommended: VS Code)
    - Download from: https://code.visualstudio.com/
 
+### Recommended VS Code Extensions
+- **TypeScript/JavaScript Support**: Built-in (no extension needed)
+- **ES7+ React/Redux/React-Native snippets**: For React development
+- **Prettier - Code formatter**: For consistent code formatting
+- **Auto Rename Tag**: For HTML/JSX tag editing
+
 ## 🔧 Project Setup
 
 ### 1. Clone the Repository
@@ -53,6 +59,12 @@ The following packages are automatically installed with `npm install`:
 
 ### Email Service
 - `resend` (^6.0.1) - Email delivery service
+
+### 🎙️ New Features (August 2025)
+- **Gender-Aware Spanish Grammar**: Female voices now speak with proper feminine grammar
+- **Enhanced UX**: Better button states and interruption handling
+- **Smart Audio Filenames**: Downloads use story titles + dates
+- **Improved Email Error Handling**: Better user feedback for email restrictions
 
 ### Optional Services (for full functionality)
 - `@supabase/supabase-js` (^2.39.1) - Database (if needed)
@@ -110,10 +122,18 @@ IEX_CLOUD_API_KEY=your_iex_cloud_key
 5. Copy the key and add to `.env.local` as `RESEND_API_KEY`
 6. **Cost:** Free tier: 3,000 emails/month
 
-### 3. Domain Verification (Optional but Recommended)
+### 3. Domain Verification (Recommended for Production)
 1. In Resend dashboard, go to: https://resend.com/domains
-2. Add your domain and verify it
-3. Update the `from` field in `/pages/api/send-email.ts`
+2. Add your domain (e.g., `memorias-ai.com`) and verify it
+3. **DNS Configuration Required:**
+   - Add TXT record for domain verification (resend._domainkey)
+   - Add TXT record for SPF (send subdomain): `v=spf1 include:amazonses.com ~all`
+   - Add MX record for email routing (send subdomain): `feedback-smtp.us-east-1.amazonses.com`
+   - Add DMARC policy (optional): `v=DMARC1; p=none;`
+4. Wait for DNS propagation (up to 24 hours)
+5. Update the `from` field in `/pages/api/send-email.ts` from `onboarding@resend.dev` to `stories@yourdomain.com`
+
+**Note:** While domain verification is pending, emails can only be sent to verified addresses in your Resend account.
 
 ## 🚀 Running the Application
 
@@ -158,20 +178,27 @@ ai-personal-team/
 ## 🎯 Features Overview
 
 ### Core Memorias AI Features
-- **Voice Selection:** Multiple Argentine Spanish voice options
-- **Audio Recording:** Browser-based audio capture
-- **AI Transcription:** OpenAI Whisper for Spanish transcription
-- **Story Management:** Edit and organize transcribed stories
-- **Email Delivery:** Send stories via email using Resend
-- **Audio Download:** Download recorded audio files
+- **🗣️ Gender-Aware Voice Selection:** Multiple Argentine Spanish voices (Carmen, Diego, Valentina, Mateo) with proper gender grammar
+- **🎙️ Smart Audio Recording:** Browser-based audio capture with enhanced UX
+- **🤖 AI Transcription:** OpenAI Whisper for accurate Spanish transcription
+- **📖 Story Management:** Edit and organize transcribed stories with smart formatting
+- **📧 Email Delivery:** Send stories via email using Resend service
+- **💾 Smart Audio Download:** Download recorded audio with descriptive filenames
+
+### 🆕 Latest Enhancements (August 2025)
+- **Gender-Aware Grammar:** Female agents speak with proper feminine Spanish grammar ("estoy lista" not "estoy listo")
+- **Enhanced Button States:** Clear "Interrumpir" button during agent speech transitions
+- **Auto-Recording:** Seamless flow from interruption to recording during storytelling phase
+- **Smart Filenames:** Downloaded audio files use story titles + date (e.g., "mi-historia-2025-08-10.mp3")
+- **Better Error Handling:** Clear Spanish error messages for email restrictions
 
 ### Technical Features
-- Real-time audio recording
-- State management with Redux pattern
-- Responsive design
-- Error handling and validation
-- Email format validation
-- Audio format support
+- Real-time audio recording with state management
+- Redux-pattern state management for complex interactions
+- Responsive design optimized for mobile and desktop
+- Comprehensive error handling and validation
+- Email format validation with user-friendly feedback
+- Multiple audio format support (MP3, WAV, OGG)
 
 ## 🔧 Development Commands
 
