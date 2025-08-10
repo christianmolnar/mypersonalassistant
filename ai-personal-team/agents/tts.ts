@@ -126,6 +126,77 @@ export function getArgentineVoices(): Array<{
 }
 
 /**
+ * Get the gender of a voice by its ID
+ * 
+ * @param voiceId - The voice ID to look up
+ * @returns The gender of the voice ('male' or 'female'), defaults to 'female'
+ */
+export function getVoiceGender(voiceId: string): 'male' | 'female' {
+  const voice = getArgentineVoices().find(v => v.id === voiceId);
+  return voice?.gender || 'female'; // Default to female if voice not found
+}
+
+/**
+ * Apply gender-aware Spanish grammar corrections to agent messages
+ * 
+ * @param text - The original Spanish text with masculine grammar
+ * @param gender - The gender of the agent voice ('male' or 'female')
+ * @returns Text with gender-appropriate grammar
+ */
+export function applyGenderGrammar(text: string, gender: 'male' | 'female'): string {
+  if (gender === 'male') {
+    return text; // Masculine forms are already correct
+  }
+  
+  // Apply feminine grammar corrections for female voices
+  let correctedText = text;
+  
+  // Common adjective corrections (add more as needed)
+  const grammarCorrections: Array<{ masculine: RegExp; feminine: string }> = [
+    // "estoy listo" -> "estoy lista"
+    { masculine: /\bestoy listo\b/gi, feminine: 'estoy lista' },
+    
+    // "soy bueno" -> "soy buena"  
+    { masculine: /\bsoy bueno\b/gi, feminine: 'soy buena' },
+    
+    // "estoy preparado" -> "estoy preparada"
+    { masculine: /\bestoy preparado\b/gi, feminine: 'estoy preparada' },
+    
+    // "estoy cansado" -> "estoy cansada"
+    { masculine: /\bestoy cansado\b/gi, feminine: 'estoy cansada' },
+    
+    // "soy feliz" (no change needed - feliz is gender neutral)
+    // "estoy contento" -> "estoy contenta"
+    { masculine: /\bestoy contento\b/gi, feminine: 'estoy contenta' },
+    
+    // "me siento listo" -> "me siento lista"
+    { masculine: /\bme siento listo\b/gi, feminine: 'me siento lista' },
+    
+    // "estoy emocionado" -> "estoy emocionada"
+    { masculine: /\bestoy emocionado\b/gi, feminine: 'estoy emocionada' },
+    
+    // "soy perfecto" -> "soy perfecta" 
+    { masculine: /\bsoy perfecto\b/gi, feminine: 'soy perfecta' },
+    
+    // "estoy seguro" -> "estoy segura"
+    { masculine: /\bestoy seguro\b/gi, feminine: 'estoy segura' },
+    
+    // "he terminado" -> "he terminada" (past participle agreement)
+    { masculine: /\bhe terminado\b/gi, feminine: 'he terminada' },
+    
+    // "estoy terminado" -> "estoy terminada"
+    { masculine: /\bestoy terminado\b/gi, feminine: 'estoy terminada' }
+  ];
+  
+  // Apply each correction
+  grammarCorrections.forEach(({ masculine, feminine }) => {
+    correctedText = correctedText.replace(masculine, feminine);
+  });
+  
+  return correctedText;
+}
+
+/**
  * Process audio for better playback quality
  * 
  * @param audioBlob - The raw TTS audio blob

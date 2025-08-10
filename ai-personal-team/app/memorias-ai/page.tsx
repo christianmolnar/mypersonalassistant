@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useReducer } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
 import { transcribeAudio } from '../../agents/whisper_transcribe';
-import { getArgentineVoices } from '../../agents/tts';
+import { getArgentineVoices, getVoiceGender, applyGenderGrammar } from '../../agents/tts';
 import { MemoryManager } from '../../lib/AgentMemory';
 import { formatStoryText } from '../../lib/utils';
 import { 
@@ -546,7 +546,19 @@ export default function MemoriasAIPage() {
       };
     }
     
-    // If agent is speaking and user can interrupt
+    // Special handling for storytelling transition - when agent is speaking confirmation message
+    if (state.agent.conversationPhase === 'storytelling' && 
+        (state.agent.agentSpeechState === 'speaking' || state.agent.agentSpeechState === 'preparing') && 
+        state.agent.userCanInterrupt) {
+      return {
+        text: '⏸️ Interrumpir',
+        disabled: false,
+        variant: 'interrupt',
+        highlight: true
+      };
+    }
+    
+    // If agent is speaking and user can interrupt (info gathering phase)
     if (state.agent.agentSpeechState === 'speaking' && state.agent.userCanInterrupt) {
       return {
         text: getLocalizedText('INTERRUPT_AGENT_BUTTON', state.ui.currentLanguage),
@@ -1062,8 +1074,20 @@ export default function MemoriasAIPage() {
 
   // Agent conversation functions
   const speakAgentMessage = async (message: string) => {
-    // Dispatch agent speech preparation
-    dispatch(agentActions.prepareAgentSpeech(message));
+    // Apply gender-aware Spanish grammar based on selected voice
+    const voiceGender = getVoiceGender(state.agent.selectedVoice || 'nova'); // Default to nova (Valentina) if no voice selected
+    const correctedMessage = applyGenderGrammar(message, voiceGender);
+    
+    console.log('🗣️ Gender-aware speech:', {
+      originalMessage: message,
+      correctedMessage: correctedMessage,
+      voiceId: state.agent.selectedVoice,
+      voiceGender: voiceGender,
+      grammarChanged: message !== correctedMessage
+    });
+    
+    // Dispatch agent speech preparation with corrected message
+    dispatch(agentActions.prepareAgentSpeech(correctedMessage));
     
     try {
       // Call the API route instead of client-side function
@@ -1073,7 +1097,7 @@ export default function MemoriasAIPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: message,
+          text: correctedMessage,
           voice: state.agent.selectedVoice,
           speed: 0.9
         }),
@@ -1423,10 +1447,32 @@ export default function MemoriasAIPage() {
       
     } catch (error) {
       console.error('Error sending email:', error);
-      alert('Error al enviar el email. Por favor, intente nuevamente.');
+      
+      // Check if it's the Resend testing restriction error
+      if (error instanceof Error && error.message.includes('Email restricted: Can only send to verified')) {
+        alert(`No se puede enviar email a ${storytellerEmail}.\n\nLa cuenta de email está en modo de prueba y solo puede enviar a direcciones verificadas.\n\nPor favor use chrismolhome@hotmail.com para pruebas, o contacte al administrador para verificar su dominio.`);
+      } else {
+        alert('Error al enviar el email. Por favor, intente nuevamente.');
+      }
     } finally {
       dispatch(uiActions.setIsEmailSending(false));
     }
+  };
+
+  // Function to create a safe filename from story title
+  const createSafeFilename = (title, maxLength = 10) => {
+    if (!title || title.trim() === '') {
+      return 'historia';
+    }
+    
+    return title
+      .trim()
+      .slice(0, maxLength) // Limit to maxLength characters
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '') // Remove invalid filename characters
+      .replace(/[\s]+/g, '-') // Replace spaces with hyphens
+      .replace(/[^\w\-]/g, '') // Remove any remaining non-alphanumeric chars except hyphens
+      .toLowerCase()
+      || 'historia'; // Fallback if everything gets removed
   };
 
   const downloadStoryAudio = () => {
@@ -1436,10 +1482,16 @@ export default function MemoriasAIPage() {
       return;
     }
     
+    // Create filename: [story-title]-[date].[extension]
+    const safeTitle = createSafeFilename(state.userProfile.storyTitle);
+    const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const extension = getFileExtension(state.recording.audioMimeType);
+    const filename = `${safeTitle}-${dateStr}.${extension}`;
+    
     const url = URL.createObjectURL(combinedAudio);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `mi-historia-${new Date().toISOString().split('T')[0]}.${getFileExtension(state.recording.audioMimeType)}`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1751,9 +1803,9 @@ export default function MemoriasAIPage() {
             {/* Left: Grabar Historia (Green - Primary Action) */}
             <button 
               onClick={() => {
-                // 🎯 CORE INTERRUPTION LOGIC: Handle agent speech interruption
+                // 🎯 ENHANCED INTERRUPTION LOGIC: Handle agent speech interruption during transition
                 if (state.agent.agentSpeechState === 'speaking' || state.agent.agentSpeechState === 'preparing') {
-                  console.log('🛑 Interrupting agent speech...');
+                  console.log('🛑 Interrupting agent speech during storytelling transition...');
                   dispatch(agentActions.interruptAgentSpeech());
                   
                   // Stop the actual audio playback
@@ -1761,7 +1813,16 @@ export default function MemoriasAIPage() {
                     currentAudioRef.current.pause();
                     currentAudioRef.current = null;
                   }
-                  return; // Exit early, don't start recording
+                  
+                  // If we're in storytelling phase and interrupting the transition message,
+                  // automatically start recording since user wants to skip to recording
+                  if (state.agent.conversationPhase === 'storytelling') {
+                    console.log('🎤 Auto-starting recording after transition interruption...');
+                    setTimeout(() => {
+                      startRecording();
+                    }, 100); // Small delay to ensure state updates complete
+                  }
+                  return; // Exit early
                 }
                 
                 // Recording logic - call the actual functions
@@ -1789,7 +1850,7 @@ export default function MemoriasAIPage() {
                 transition: 'all 0.3s ease'
               }}
             >
-              {state.recording.recording ? '🛑 Parar' : '🎙️ Grabar Historia'}
+              {getRecordingButtonState().text}
             </button>
 
             {/* Descartar Última Button - Only show if there's a last recording */}

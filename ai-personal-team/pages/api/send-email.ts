@@ -37,6 +37,15 @@ export default async function handler(
 
     if (error) {
       console.error('❌ Resend error:', error);
+      
+      // Provide specific error messages for common issues
+      if (error.message && error.message.includes('You can only send testing emails to your own email address')) {
+        return res.status(403).json({ 
+          error: 'Email restricted: Can only send to verified email addresses in test mode. Please verify your domain in Resend dashboard or use chrismolhome@hotmail.com for testing.',
+          details: error.message 
+        });
+      }
+      
       return res.status(400).json({ error: error.message || 'Failed to send email' });
     }
 
