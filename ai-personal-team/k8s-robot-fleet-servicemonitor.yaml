@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: robot-fleet-metrics
+  namespace: ai-personal-team
+  labels:
+    app: ai-robot-fleet
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: ai-personal-team
+  endpoints:
+  - port: http
+    path: /api/robot-fleet-metrics
+    interval: 30s
+    scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+    - ai-personal-team

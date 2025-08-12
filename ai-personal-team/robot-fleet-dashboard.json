@@ -1,0 +1,149 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "robot-fleet-001",
+    "title": "🤖 AI Robot Fleet - Monitoring Dashboard",
+    "description": "Comprehensive monitoring dashboard for AI Robot Fleet with business process insights and health metrics",
+    "tags": ["robots", "ai-agents", "monitoring", "fleet"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Robot Fleet Health Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(agent_heartbeat_total)",
+            "legendFormat": "Total Active Robots"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "green", "value": 3}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Robot Queue Depths",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "agent_queue_depth_total",
+            "legendFormat": "{{queue_type}} - {{priority}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Robot Heartbeats (Last 5 min)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(agent_heartbeat_total[5m])",
+            "legendFormat": "{{agent_type}} Robot - {{status}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "reqps"
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Business Process Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "rate(agent_process_executions_total{status=\"success\"}[5m]) / rate(agent_process_executions_total[5m]) * 100",
+            "legendFormat": "{{process_type}} Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 80},
+                {"color": "green", "value": 95}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Robot CPU Usage",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "agent_cpu_usage_percent",
+            "legendFormat": "{{agent_type}} Robot ({{agent_id}})"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Robot Process Execution Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(agent_process_completion_time_seconds_sum[5m]) / rate(agent_process_completion_time_seconds_count[5m])",
+            "legendFormat": "{{agent_type}} Robot - Avg Execution Time"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "s"
+          }
+        },
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}

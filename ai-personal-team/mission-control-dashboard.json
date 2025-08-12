@@ -1,0 +1,352 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "mission-control-dashboard",
+    "title": "🚀 Mission Control - Robot Fleet Health Overview",
+    "description": "Enterprise Robot Fleet Mission Control with 1.65M Robots across Multi-Tenant Environment",
+    "tags": ["mission-control", "robots", "fleet", "enterprise", "tenants"],
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);'><span style='color: #00d4aa;'>🚀 MISSION CONTROL</span><br><span style='font-size: 18px; color: #b3b3b3;'>AI Robot Fleet Command Center - 1.65M Active Robots</span></div>"
+        },
+        "transparent": true
+      },
+      {
+        "id": 2,
+        "title": "TOTAL FLEET",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 3},
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_total)",
+            "legendFormat": "Total Active Robots",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "white"},
+            "unit": "short",
+            "custom": {
+              "displayMode": "basic",
+              "textMode": "value_and_name"
+            }
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "🟢 HEALTHY ROBOTS",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 9},
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_healthy)",
+            "legendFormat": "Healthy Robots",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "green"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "pointSize": 5,
+              "fillOpacity": 30,
+              "gradientMode": "opacity"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "hidden"}
+        }
+      },
+      {
+        "id": 4,
+        "title": "🟡 DEGRADED ROBOTS",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 9},
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_degraded)",
+            "legendFormat": "Degraded Robots",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "yellow"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "pointSize": 5,
+              "fillOpacity": 30,
+              "gradientMode": "opacity"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "hidden"}
+        }
+      },
+      {
+        "id": 5,
+        "title": "🟠 CRITICAL ROBOTS",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 9},
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_critical)",
+            "legendFormat": "Critical Robots",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "orange"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "pointSize": 5,
+              "fillOpacity": 30,
+              "gradientMode": "opacity"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "hidden"}
+        }
+      },
+      {
+        "id": 6,
+        "title": "🔴 DOWN ROBOTS",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 9},
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_down)",
+            "legendFormat": "Down Robots",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "red"},
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "pointSize": 5,
+              "fillOpacity": 30,
+              "gradientMode": "opacity"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single"},
+          "legend": {"displayMode": "hidden"}
+        }
+      },
+      {
+        "id": 7,
+        "title": "Robot Class Success Rates by Tenant",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 17},
+        "targets": [
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"image_generator\"}",
+            "legendFormat": "🖼️ Image Generator",
+            "refId": "A"
+          },
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"vinyl_researcher\"}",
+            "legendFormat": "📀 Vinyl Researcher",
+            "refId": "B"
+          },
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"communications\"}",
+            "legendFormat": "✉️ Communications Agent",
+            "refId": "C"
+          },
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"memorias_ai\"}",
+            "legendFormat": "🎤 Memorias-AI",
+            "refId": "D"
+          },
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"fact_checker\"}",
+            "legendFormat": "🕵️ Fact Checker",
+            "refId": "E"
+          },
+          {
+            "expr": "robot_success_rate_percent{robot_type=\"finsight_ai\"}",
+            "legendFormat": "📊 f.insight.AI",
+            "refId": "F"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 75},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "links": [
+              {
+                "title": "Drill Down to Tenant View",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}",
+                "targetBlank": false
+              }
+            ]
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        }
+      },
+      {
+        "id": 8,
+        "title": "Multi-Tenant Robot Activity (txn/min)",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 23},
+        "targets": [
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"image_generator\"}",
+            "legendFormat": "🖼️ Image Generator",
+            "refId": "A"
+          },
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"vinyl_researcher\"}",
+            "legendFormat": "📀 Vinyl Researcher",
+            "refId": "B"
+          },
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"communications\"}",
+            "legendFormat": "✉️ Communications Agent",
+            "refId": "C"
+          },
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"memorias_ai\"}",
+            "legendFormat": "🎤 Memorias-AI",
+            "refId": "D"
+          },
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"fact_checker\"}",
+            "legendFormat": "🕵️ Fact Checker",
+            "refId": "E"
+          },
+          {
+            "expr": "robot_throughput_transactions_per_minute{robot_type=\"finsight_ai\"}",
+            "legendFormat": "📊 f.insight.AI",
+            "refId": "F"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 1000},
+                {"color": "yellow", "value": 2500},
+                {"color": "green", "value": 4000}
+              ]
+            },
+            "unit": "short",
+            "links": [
+              {
+                "title": "View Tenant Breakdown",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=throughput",
+                "targetBlank": false
+              }
+            ]
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "tenant",
+          "type": "query",
+          "query": "label_values(robot_fleet_healthy, tenant)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*",
+          "multi": true,
+          "options": [],
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Robot Fleet Events",
+          "enable": true,
+          "iconColor": "red",
+          "datasource": "Prometheus",
+          "expr": "changes(robot_fleet_down[5m]) > 0"
+        }
+      ]
+    },
+    "schemaVersion": 27,
+    "version": 1,
+    "links": [
+      {
+        "title": "Tenant Breakdown Dashboard",
+        "url": "/d/tenant-breakdown",
+        "type": "dashboards",
+        "tags": ["tenant", "drill-down"]
+      }
+    ]
+  },
+  "overwrite": true
+}

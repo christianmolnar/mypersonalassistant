@@ -1,0 +1,94 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-robot-fleet-alerts
+  namespace: ai-personal-team
+  labels:
+    app: ai-robot-fleet
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: robot-fleet.rules
+    rules:
+    # Robot Health Alerts
+    - alert: RobotDown
+      expr: up{job=~".*ai.*"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        team: ai-robots
+      annotations:
+        summary: "AI Robot {{ $labels.job }} is down"
+        description: "Robot {{ $labels.job }} has been down for more than 1 minute."
+        
+    - alert: RobotHeartbeatMissing
+      expr: increase(agent_heartbeat_total[5m]) == 0
+      for: 2m
+      labels:
+        severity: warning
+        team: ai-robots
+      annotations:
+        summary: "Robot {{ $labels.agent_type }} heartbeat missing"
+        description: "Robot {{ $labels.agent_type }} ({{ $labels.agent_id }}) hasn't sent heartbeat for 2+ minutes."
+        
+    # Business Process Alerts
+    - alert: RobotProcessFailureRate
+      expr: |
+        (
+          rate(agent_process_executions_total{status="failure"}[5m]) / 
+          rate(agent_process_executions_total[5m])
+        ) * 100 > 10
+      for: 3m
+      labels:
+        severity: warning
+        team: ai-robots
+      annotations:
+        summary: "High failure rate for {{ $labels.process_type }} robot"
+        description: "Robot {{ $labels.agent_type }} has {{ $value }}% failure rate for {{ $labels.process_type }} processes."
+        
+    - alert: RobotProcessFailureRateCritical
+      expr: |
+        (
+          rate(agent_process_executions_total{status="failure"}[5m]) / 
+          rate(agent_process_executions_total[5m])
+        ) * 100 > 25
+      for: 1m
+      labels:
+        severity: critical
+        team: ai-robots
+      annotations:
+        summary: "CRITICAL: Robot {{ $labels.process_type }} failure rate"
+        description: "Robot {{ $labels.agent_type }} has {{ $value }}% failure rate - immediate attention required!"
+        
+    # Performance Alerts  
+    - alert: RobotHighCPUUsage
+      expr: agent_cpu_usage_percent > 80
+      for: 5m
+      labels:
+        severity: warning
+        team: ai-robots
+      annotations:
+        summary: "Robot {{ $labels.agent_type }} high CPU usage"
+        description: "Robot {{ $labels.agent_type }} ({{ $labels.agent_id }}) CPU usage is {{ $value }}% for 5+ minutes."
+        
+    - alert: RobotQueueBacklog
+      expr: agent_queue_depth_total > 50
+      for: 2m
+      labels:
+        severity: warning
+        team: ai-robots
+      annotations:
+        summary: "Robot queue backlog detected"
+        description: "{{ $labels.queue_type }} queue has {{ $value }} items - potential bottleneck."
+        
+    # Business Impact Alerts
+    - alert: RobotFleetCapacityLow
+      expr: count(agent_heartbeat_total{status="success"}) < 3
+      for: 1m
+      labels:
+        severity: critical
+        team: ai-robots
+      annotations:
+        summary: "Robot Fleet capacity critically low"
+        description: "Only {{ $value }} robots are healthy - fleet capacity compromised."
