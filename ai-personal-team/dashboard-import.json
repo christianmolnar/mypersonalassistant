@@ -1,0 +1,5 @@
+{
+  "dashboard": $(cat mission-control-dashboard.json),
+  "overwrite": true,
+  "inputs": []
+}

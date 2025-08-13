@@ -1,0 +1,438 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🚀 Enhanced Mission Control - Multi-Tenant Robot Fleet",
+    "tags": ["robot-fleet", "mission-control", "multi-tenant"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🤖 Total Active Robots (Fixed Count)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            },
+            "unit": "short",
+            "custom": {
+              "displayMode": "basic"
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_total{tenant!=\"total\"})",
+            "legendFormat": "Total Active Robots",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "✅ Healthy Robots",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 6, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_healthy{tenant!=\"total\"})",
+            "legendFormat": "Healthy Robots",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "⚠️ Degraded Robots",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 10, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "yellow", "value": null}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_degraded{tenant!=\"total\"})",
+            "legendFormat": "Degraded Robots",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "🔴 Critical Robots",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 14, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "orange", "value": null}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_critical{tenant!=\"total\"})",
+            "legendFormat": "Critical Robots",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "💀 Down Robots",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 18, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_down{tenant!=\"total\"})",
+            "legendFormat": "Down Robots",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "📊 Top 10 Tenants by Robot Count",
+        "type": "barchart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": []
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "displayMode": "list",
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "expr": "topk(10, sum(robot_fleet_total{tenant!=\"total\"}) by (tenant))",
+            "legendFormat": "{{tenant}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "🔧 Robot Fleet Health by Tenant",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 10, "x": 12, "y": 4},
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_healthy{tenant!=\"total\"}) by (tenant) / sum(robot_fleet_total{tenant!=\"total\"}) by (tenant) * 100",
+            "legendFormat": "{{tenant}} Health %",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "🤖 Robot Class Performance Overview",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 22, "x": 0, "y": 12},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        },
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_total{tenant!=\"total\"}) by (robot_type)",
+            "format": "table",
+            "legendFormat": "Total",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(robot_fleet_healthy{tenant!=\"total\"}) by (robot_type)",
+            "format": "table", 
+            "legendFormat": "Healthy",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(robot_fleet_degraded{tenant!=\"total\"}) by (robot_type)",
+            "format": "table",
+            "legendFormat": "Degraded", 
+            "refId": "C"
+          },
+          {
+            "expr": "sum(robot_fleet_critical{tenant!=\"total\"}) by (robot_type)",
+            "format": "table",
+            "legendFormat": "Critical",
+            "refId": "D"
+          },
+          {
+            "expr": "sum(robot_fleet_down{tenant!=\"total\"}) by (robot_type)",
+            "format": "table",
+            "legendFormat": "Down",
+            "refId": "E"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "🔌 Integration Health Status",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 20},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [
+              {"options": {"0": {"text": "DOWN"}}, "type": "value"},
+              {"options": {"1": {"text": "UP"}}, "type": "value"}
+            ],
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center"
+        },
+        "targets": [
+          {
+            "expr": "openai_api_availability_status",
+            "legendFormat": "OpenAI API",
+            "refId": "A"
+          },
+          {
+            "expr": "whisper_tts_availability_status",
+            "legendFormat": "Whisper TTS",
+            "refId": "B"
+          },
+          {
+            "expr": "schwab_api_availability_status",
+            "legendFormat": "Schwab API",
+            "refId": "C"
+          },
+          {
+            "expr": "coinbase_api_availability_status",
+            "legendFormat": "Coinbase API",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "🌐 Network Infrastructure Health",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 8, "x": 6, "y": 20},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 0.8},
+                {"color": "green", "value": 0.95}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "expr": "uipath_orchestrator_connectivity_status * 100",
+            "legendFormat": "UiPath Orchestrator",
+            "refId": "A"
+          },
+          {
+            "expr": "vpn_connection_uptime_percent",
+            "legendFormat": "VPN Stability",
+            "refId": "B"
+          },
+          {
+            "expr": "100 - network_internal_utilization_percent",
+            "legendFormat": "Network Capacity",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "💾 Database Performance",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 8, "x": 14, "y": 20},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "expr": "supabase_active_connections / supabase_max_connections * 100",
+            "legendFormat": "DB Connections",
+            "refId": "A"
+          },
+          {
+            "expr": "supabase_storage_usage_percent",
+            "legendFormat": "DB Storage",
+            "refId": "B"
+          },
+          {
+            "expr": "redis_memory_utilization_percent",
+            "legendFormat": "Redis Memory",
+            "refId": "C"
+          },
+          {
+            "expr": "prometheus_tsdb_disk_usage_percent",
+            "legendFormat": "Prometheus Storage",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "🎯 Failure Scenario Simulator",
+        "type": "text",
+        "gridPos": {"h": 4, "w": 22, "x": 0, "y": 26},
+        "options": {
+          "content": "## 🎭 Failure Scenario Control Panel\n\n**Available Scenarios:**\n- 🏢 **Tenant Degradation**: Simulate performance issues for specific enterprise tenant\n- 🤖 **Robot Type Failure**: Simulate mass failure of specific robot class\n- 🚫 **API Rate Limiting**: Simulate external API throttling\n- 🌐 **Network Partition**: Simulate connectivity issues\n- 💾 **Database Slowdown**: Simulate database performance degradation\n\n**Usage:** Send POST to `/api/enhanced-robot-fleet-metrics` with scenario parameters\n\n```json\n{\n  \"scenarioType\": \"tenant_degradation\",\n  \"tenantName\": \"NASA\",\n  \"duration\": 60\n}\n```",
+          "mode": "markdown"
+        }
+      }
+    ]
+  }
+}

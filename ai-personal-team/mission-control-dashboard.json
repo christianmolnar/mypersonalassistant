@@ -1,10 +1,10 @@
 {
   "dashboard": {
     "id": null,
-    "uid": "mission-control-dashboard",
-    "title": "🚀 Mission Control - Robot Fleet Health Overview",
-    "description": "Enterprise Robot Fleet Mission Control with 1.65M Robots across Multi-Tenant Environment",
-    "tags": ["mission-control", "robots", "fleet", "enterprise", "tenants"],
+    "uid": "mission-control-dashboard", 
+    "title": "🚀 Mission Control - Enterprise AI Robot Fleet Observatory",
+    "description": "Comprehensive Multi-Layer Monitoring with Tenant Drill-Down - 1.65M Active Robots",
+    "tags": ["mission-control", "robots", "fleet", "enterprise", "tenants", "full-stack"],
     "timezone": "browser",
     "refresh": "5s",
     "time": {
@@ -19,30 +19,50 @@
         "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
         "options": {
           "mode": "html",
-          "content": "<div style='text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);'><span style='color: #00d4aa;'>🚀 MISSION CONTROL</span><br><span style='font-size: 18px; color: #b3b3b3;'>AI Robot Fleet Command Center - 1.65M Active Robots</span></div>"
+          "content": "<div style='text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);'><span style='color: #00d4aa;'>🚀 MISSION CONTROL</span><br><span style='font-size: 18px; color: #b3b3b3;'>Enterprise AI Robot Fleet Observatory - Multi-Layer Monitoring</span></div>"
         },
         "transparent": true
       },
+
       {
         "id": 2,
-        "title": "TOTAL FLEET",
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 3},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #00d4aa; background: rgba(0, 212, 170, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #00d4aa;'>📊 SECTION A: All Up Fleet Metrics</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 3,
+        "title": "TOTAL ACTIVE ROBOTS",
         "type": "stat",
-        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 3},
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 5},
         "targets": [
           {
-            "expr": "sum(robot_fleet_total)",
+            "expr": "sum(robot_fleet_total{tenant!=\"total\"})",
             "legendFormat": "Total Active Robots",
             "refId": "A"
           }
         ],
         "fieldConfig": {
           "defaults": {
-            "color": {"mode": "fixed", "fixedColor": "white"},
+            "color": {"mode": "fixed", "fixedColor": "blue"},
             "unit": "short",
             "custom": {
               "displayMode": "basic",
               "textMode": "value_and_name"
-            }
+            },
+            "links": [
+              {
+                "title": "Top 10 Tenants by Robot Count",
+                "url": "/d/tenant-breakdown?var-metric=fleet_total&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
           }
         },
         "options": {
@@ -56,14 +76,15 @@
           }
         }
       },
+
       {
-        "id": 3,
+        "id": 4,
         "title": "🟢 HEALTHY ROBOTS",
         "type": "timeseries",
-        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 9},
+        "gridPos": {"h": 6, "w": 4, "x": 6, "y": 5},
         "targets": [
           {
-            "expr": "sum(robot_fleet_healthy)",
+            "expr": "sum(robot_fleet_healthy{tenant!=\"total\"})",
             "legendFormat": "Healthy Robots",
             "refId": "A"
           }
@@ -78,7 +99,14 @@
               "pointSize": 5,
               "fillOpacity": 30,
               "gradientMode": "opacity"
-            }
+            },
+            "links": [
+              {
+                "title": "Health Status by Tenant",
+                "url": "/d/tenant-breakdown?var-metric=fleet_health&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
           }
         },
         "options": {
@@ -86,14 +114,15 @@
           "legend": {"displayMode": "hidden"}
         }
       },
+
       {
-        "id": 4,
+        "id": 5,
         "title": "🟡 DEGRADED ROBOTS",
         "type": "timeseries",
-        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 9},
+        "gridPos": {"h": 6, "w": 4, "x": 10, "y": 5},
         "targets": [
           {
-            "expr": "sum(robot_fleet_degraded)",
+            "expr": "sum(robot_fleet_degraded{tenant!=\"total\"})",
             "legendFormat": "Degraded Robots",
             "refId": "A"
           }
@@ -108,7 +137,14 @@
               "pointSize": 5,
               "fillOpacity": 30,
               "gradientMode": "opacity"
-            }
+            },
+            "links": [
+              {
+                "title": "Health Status by Tenant",
+                "url": "/d/tenant-breakdown?var-metric=fleet_health&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
           }
         },
         "options": {
@@ -116,14 +152,15 @@
           "legend": {"displayMode": "hidden"}
         }
       },
+
       {
-        "id": 5,
+        "id": 6,
         "title": "🟠 CRITICAL ROBOTS",
         "type": "timeseries",
-        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 9},
+        "gridPos": {"h": 6, "w": 4, "x": 14, "y": 5},
         "targets": [
           {
-            "expr": "sum(robot_fleet_critical)",
+            "expr": "sum(robot_fleet_critical{tenant!=\"total\"})",
             "legendFormat": "Critical Robots",
             "refId": "A"
           }
@@ -138,7 +175,14 @@
               "pointSize": 5,
               "fillOpacity": 30,
               "gradientMode": "opacity"
-            }
+            },
+            "links": [
+              {
+                "title": "Health Status by Tenant",
+                "url": "/d/tenant-breakdown?var-metric=fleet_health&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
           }
         },
         "options": {
@@ -146,14 +190,15 @@
           "legend": {"displayMode": "hidden"}
         }
       },
+
       {
-        "id": 6,
+        "id": 7,
         "title": "🔴 DOWN ROBOTS",
         "type": "timeseries",
-        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 9},
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 5},
         "targets": [
           {
-            "expr": "sum(robot_fleet_down)",
+            "expr": "sum(robot_fleet_down{tenant!=\"total\"})",
             "legendFormat": "Down Robots",
             "refId": "A"
           }
@@ -168,7 +213,14 @@
               "pointSize": 5,
               "fillOpacity": 30,
               "gradientMode": "opacity"
-            }
+            },
+            "links": [
+              {
+                "title": "Health Status by Tenant",
+                "url": "/d/tenant-breakdown?var-metric=fleet_health&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
           }
         },
         "options": {
@@ -176,39 +228,52 @@
           "legend": {"displayMode": "hidden"}
         }
       },
+
       {
-        "id": 7,
+        "id": 8,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 11},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #ff6b35; background: rgba(255, 107, 53, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #ff6b35;'>🎯 SECTION B: Robot Class Success Rates</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 9,
         "title": "Robot Class Success Rates by Tenant",
         "type": "stat",
-        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 17},
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 13},
         "targets": [
           {
-            "expr": "robot_success_rate_percent{robot_type=\"image_generator\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"image_generator\"}) by (robot_type)",
             "legendFormat": "🖼️ Image Generator",
             "refId": "A"
           },
           {
-            "expr": "robot_success_rate_percent{robot_type=\"vinyl_researcher\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"vinyl_researcher\"}) by (robot_type)",
             "legendFormat": "📀 Vinyl Researcher",
             "refId": "B"
           },
           {
-            "expr": "robot_success_rate_percent{robot_type=\"communications\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"communications\"}) by (robot_type)",
             "legendFormat": "✉️ Communications Agent",
             "refId": "C"
           },
           {
-            "expr": "robot_success_rate_percent{robot_type=\"memorias_ai\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"memorias_ai\"}) by (robot_type)",
             "legendFormat": "🎤 Memorias-AI",
             "refId": "D"
           },
           {
-            "expr": "robot_success_rate_percent{robot_type=\"fact_checker\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"fact_checker\"}) by (robot_type)",
             "legendFormat": "🕵️ Fact Checker",
             "refId": "E"
           },
           {
-            "expr": "robot_success_rate_percent{robot_type=\"finsight_ai\"}",
+            "expr": "avg(robot_success_rate_percent{robot_type=\"finsight_ai\"}) by (robot_type)",
             "legendFormat": "📊 f.insight.AI",
             "refId": "F"
           }
@@ -229,8 +294,8 @@
             "max": 100,
             "links": [
               {
-                "title": "Drill Down to Tenant View",
-                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}",
+                "title": "Top 10 Tenants - ${__field.labels.robot_type} Performance",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=success_rate&from=${__from}&to=${__to}",
                 "targetBlank": false
               }
             ]
@@ -242,41 +307,29 @@
           "textMode": "value_and_name"
         }
       },
+
       {
-        "id": 8,
-        "title": "Multi-Tenant Robot Activity (txn/min)",
+        "id": 10,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 19},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #9b59b6; background: rgba(155, 89, 182, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #9b59b6;'>⚡ SECTION C: Robot Resource Metrics</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 11,
+        "title": "CPU Utilization by Robot Type",
         "type": "stat",
-        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 23},
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 21},
         "targets": [
           {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"image_generator\"}",
-            "legendFormat": "🖼️ Image Generator",
+            "expr": "avg(robot_cpu_utilization_percent) by (robot_type)",
+            "legendFormat": "{{robot_type}} CPU",
             "refId": "A"
-          },
-          {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"vinyl_researcher\"}",
-            "legendFormat": "📀 Vinyl Researcher",
-            "refId": "B"
-          },
-          {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"communications\"}",
-            "legendFormat": "✉️ Communications Agent",
-            "refId": "C"
-          },
-          {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"memorias_ai\"}",
-            "legendFormat": "🎤 Memorias-AI",
-            "refId": "D"
-          },
-          {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"fact_checker\"}",
-            "legendFormat": "🕵️ Fact Checker",
-            "refId": "E"
-          },
-          {
-            "expr": "robot_throughput_transactions_per_minute{robot_type=\"finsight_ai\"}",
-            "legendFormat": "📊 f.insight.AI",
-            "refId": "F"
           }
         ],
         "fieldConfig": {
@@ -284,17 +337,19 @@
             "color": {"mode": "thresholds"},
             "thresholds": {
               "steps": [
-                {"color": "red", "value": 0},
-                {"color": "orange", "value": 1000},
-                {"color": "yellow", "value": 2500},
-                {"color": "green", "value": 4000}
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "orange", "value": 80},
+                {"color": "red", "value": 90}
               ]
             },
-            "unit": "short",
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
             "links": [
               {
-                "title": "View Tenant Breakdown",
-                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=throughput",
+                "title": "Top 10 CPU Usage by Tenant",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=cpu_usage&from=${__from}&to=${__to}",
                 "targetBlank": false
               }
             ]
@@ -305,6 +360,566 @@
           "colorMode": "background",
           "textMode": "value_and_name"
         }
+      },
+
+      {
+        "id": 12,
+        "title": "Memory Utilization by Robot Type",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 21},
+        "targets": [
+          {
+            "expr": "avg(robot_memory_utilization_percent) by (robot_type)",
+            "legendFormat": "{{robot_type}} Memory",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "orange", "value": 80},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "links": [
+              {
+                "title": "Top 10 Memory Usage by Tenant",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=memory_usage&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        }
+      },
+
+      {
+        "id": 13,
+        "title": "Throughput Efficiency (Current vs Baseline)",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 27},
+        "targets": [
+          {
+            "expr": "avg(robot_throughput_transactions_per_minute / robot_throughput_baseline_transactions_per_minute) by (robot_type) * 100",
+            "legendFormat": "{{robot_type}} Efficiency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 75},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 150,
+            "links": [
+              {
+                "title": "Top 10 Performance Leaders by Tenant",
+                "url": "/d/tenant-breakdown?var-robot_type=${__field.labels.robot_type}&var-metric=throughput_efficiency&from=${__from}&to=${__to}",
+                "targetBlank": false
+              }
+            ]
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        }
+      },
+
+      {
+        "id": 14,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 33},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #e74c3c; background: rgba(231, 76, 60, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #e74c3c;'>🔗 SECTION D: Integration Metrics</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 15,
+        "title": "OpenAI API Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 35},
+        "targets": [
+          {
+            "expr": "up{job=~\".*openai.*\"}",
+            "legendFormat": "OpenAI API",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "HEALTHY"},
+              {"type": "value", "value": "0", "text": "DOWN"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 16,
+        "title": "Whisper TTS Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 35},
+        "targets": [
+          {
+            "expr": "up{job=~\".*whisper.*\"}",
+            "legendFormat": "Whisper TTS",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "HEALTHY"},
+              {"type": "value", "value": "0", "text": "DOWN"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 17,
+        "title": "Schwab API Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 8, "y": 35},
+        "targets": [
+          {
+            "expr": "up{job=~\".*schwab.*\"}",
+            "legendFormat": "Schwab API",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "HEALTHY"},
+              {"type": "value", "value": "0", "text": "DOWN"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 18,
+        "title": "Coinbase API Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 12, "y": 35},
+        "targets": [
+          {
+            "expr": "up{job=~\".*coinbase.*\"}",
+            "legendFormat": "Coinbase API",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "HEALTHY"},
+              {"type": "value", "value": "0", "text": "DOWN"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 19,
+        "title": "External Data Sources",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 35},
+        "targets": [
+          {
+            "expr": "up{job=~\".*discogs.*|.*musicbrainz.*|.*alpha.*|.*polygon.*\"}",
+            "legendFormat": "{{job}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "UP"},
+              {"type": "value", "value": "0", "text": "DOWN"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value_and_name"
+        }
+      },
+
+      {
+        "id": 20,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 39},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #f39c12; background: rgba(243, 156, 18, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #f39c12;'>🌐 SECTION E: Network Monitoring (UiPath Architecture)</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 21,
+        "title": "UiPath Orchestrator Connectivity",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 41},
+        "targets": [
+          {
+            "expr": "up{job=\"uipath-orchestrator\"}",
+            "legendFormat": "Orchestrator",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "short",
+            "mappings": [
+              {"type": "value", "value": "1", "text": "CONNECTED"},
+              {"type": "value", "value": "0", "text": "DISCONNECTED"}
+            ]
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 22,
+        "title": "Robot Heartbeat Success Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 41},
+        "targets": [
+          {
+            "expr": "rate(uipath_robot_heartbeat_success_total[5m]) * 100",
+            "legendFormat": "Heartbeat Success",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 75},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 23,
+        "title": "Network Latency (DMZ)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 41},
+        "targets": [
+          {
+            "expr": "avg(network_dmz_response_time_ms)",
+            "legendFormat": "DMZ Latency",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 100},
+                {"color": "orange", "value": 250},
+                {"color": "red", "value": 500}
+              ]
+            },
+            "unit": "ms",
+            "min": 0
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 24,
+        "title": "Load Balancer Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 41},
+        "targets": [
+          {
+            "expr": "avg(load_balancer_backend_health) * 100",
+            "legendFormat": "Backend Health",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 75},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 25,
+        "title": "",
+        "type": "text",
+        "gridPos": {"h": 2, "w": 24, "x": 0, "y": 45},
+        "options": {
+          "mode": "html",
+          "content": "<div style='text-align: center; font-size: 20px; font-weight: bold; color: #27ae60; background: rgba(39, 174, 96, 0.1); padding: 10px; border-radius: 5px; border-left: 4px solid #27ae60;'>🗄️ SECTION F: Database Monitoring</div>"
+        },
+        "transparent": true
+      },
+
+      {
+        "id": 26,
+        "title": "Supabase Connection Pool",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 47},
+        "targets": [
+          {
+            "expr": "(supabase_active_connections / supabase_max_connections) * 100",
+            "legendFormat": "Pool Usage",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "orange", "value": 85},
+                {"color": "red", "value": 95}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 27,
+        "title": "Redis Cache Hit Ratio",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 47},
+        "targets": [
+          {
+            "expr": "redis_cache_hit_ratio_percent",
+            "legendFormat": "Cache Hit Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 75},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 28,
+        "title": "Database Query Performance",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 47},
+        "targets": [
+          {
+            "expr": "rate(supabase_slow_queries_total[5m])",
+            "legendFormat": "Slow Queries/min",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "orange", "value": 15},
+                {"color": "red", "value": 50}
+              ]
+            },
+            "unit": "short",
+            "min": 0
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
+      },
+
+      {
+        "id": 29,
+        "title": "Prometheus Storage Usage",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 47},
+        "targets": [
+          {
+            "expr": "prometheus_tsdb_disk_usage_percent",
+            "legendFormat": "TSDB Usage",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "orange", "value": 85},
+                {"color": "red", "value": 95}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "textMode": "value"
+        }
       }
     ],
     "templating": {
@@ -313,6 +928,21 @@
           "name": "tenant",
           "type": "query",
           "query": "label_values(robot_fleet_healthy, tenant)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*",
+          "multi": true,
+          "options": [],
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        },
+        {
+          "name": "robot_type",
+          "type": "query", 
+          "query": "label_values(robot_fleet_total, robot_type)",
           "refresh": 1,
           "includeAll": true,
           "allValue": ".*",
@@ -334,17 +964,30 @@
           "iconColor": "red",
           "datasource": "Prometheus",
           "expr": "changes(robot_fleet_down[5m]) > 0"
+        },
+        {
+          "name": "Integration Failures",
+          "enable": true,
+          "iconColor": "orange",
+          "datasource": "Prometheus", 
+          "expr": "changes(up{job=~\".*api.*\"}[5m]) < 0"
         }
       ]
     },
     "schemaVersion": 27,
-    "version": 1,
+    "version": 2,
     "links": [
       {
         "title": "Tenant Breakdown Dashboard",
         "url": "/d/tenant-breakdown",
         "type": "dashboards",
         "tags": ["tenant", "drill-down"]
+      },
+      {
+        "title": "Failure Simulation Panel",
+        "url": "/d/failure-simulation",
+        "type": "dashboards", 
+        "tags": ["simulation", "testing"]
       }
     ]
   },

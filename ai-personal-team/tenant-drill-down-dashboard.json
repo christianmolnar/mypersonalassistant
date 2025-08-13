@@ -1,0 +1,323 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🏢 Tenant Deep Dive - Multi-Tenant Robot Fleet Analysis",
+    "tags": ["tenant-analysis", "drill-down", "multi-tenant"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "tenant",
+          "type": "query",
+          "query": "label_values(robot_fleet_total, tenant)",
+          "current": {
+            "selected": false,
+            "text": "NASA",
+            "value": "NASA"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "options": [],
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "tagValuesQuery": "",
+          "tagsQuery": "",
+          "useTags": false
+        }
+      ]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🏢 $tenant - Fleet Overview",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "value"},
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal"
+        },
+        "targets": [
+          {
+            "expr": "sum(robot_fleet_total{tenant=\"$tenant\"})",
+            "legendFormat": "Total Robots",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(robot_fleet_healthy{tenant=\"$tenant\"})",
+            "legendFormat": "Healthy",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(robot_fleet_degraded{tenant=\"$tenant\"})",
+            "legendFormat": "Degraded",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(robot_fleet_critical{tenant=\"$tenant\"})",
+            "legendFormat": "Critical",
+            "refId": "D"
+          },
+          {
+            "expr": "sum(robot_fleet_down{tenant=\"$tenant\"})",
+            "legendFormat": "Down",
+            "refId": "E"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "🤖 $tenant - Robot Fleet Distribution",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": []
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "pieType": "pie",
+          "tooltip": {"mode": "single"},
+          "legend": {
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "expr": "robot_fleet_total{tenant=\"$tenant\"}",
+            "legendFormat": "{{robot_type}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "📈 $tenant - Robot Health Trends",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 80}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "single"},
+          "legend": {
+            "calcs": [],
+            "displayMode": "visible",
+            "placement": "bottom"
+          }
+        },
+        "targets": [
+          {
+            "expr": "robot_fleet_healthy{tenant=\"$tenant\"}",
+            "legendFormat": "{{robot_type}} - Healthy",
+            "refId": "A"
+          },
+          {
+            "expr": "robot_fleet_degraded{tenant=\"$tenant\"}",
+            "legendFormat": "{{robot_type}} - Degraded",
+            "refId": "B"
+          },
+          {
+            "expr": "robot_fleet_critical{tenant=\"$tenant\"}",
+            "legendFormat": "{{robot_type}} - Critical",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "🎯 $tenant - Robot Type Performance Matrix",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "expr": "robot_fleet_healthy{tenant=\"$tenant\"} / robot_fleet_total{tenant=\"$tenant\"} * 100",
+            "format": "table",
+            "legendFormat": "Health %",
+            "refId": "A"
+          },
+          {
+            "expr": "robot_fleet_total{tenant=\"$tenant\"}",
+            "format": "table",
+            "legendFormat": "Total Robots",
+            "refId": "B"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "tenant": true
+              },
+              "indexByName": {},
+              "renameByName": {
+                "robot_type": "Robot Type",
+                "Value #A": "Health Percentage",
+                "Value #B": "Total Robots"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "🚨 $tenant - Alert Status & Recommendations",
+        "type": "text",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 20},
+        "options": {
+          "content": "## 🎯 Tenant Performance Analysis\n\n### 📊 Key Metrics for $tenant:\n- **Fleet Size**: Enterprise-scale deployment\n- **Performance Tier**: Based on infrastructure capabilities\n- **Priority Level**: Mission-critical operations\n\n### 🔍 Optimization Recommendations:\n1. **Monitor Resource Utilization** - Track CPU/Memory trends\n2. **Scale Robot Types** - Based on workload demands\n3. **Performance Tuning** - Optimize for tenant-specific patterns\n4. **Capacity Planning** - Prepare for growth scenarios\n\n### 🚨 Alert Thresholds:\n- **Health < 90%**: Performance review required\n- **Degraded > 5%**: Investigate root causes\n- **Critical > 2%**: Immediate attention needed",
+          "mode": "markdown"
+        }
+      },
+      {
+        "id": 6,
+        "title": "📈 $tenant - Comparative Performance",
+        "type": "bargauge",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 20},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "align": "auto",
+              "displayMode": "gradient-gauge",
+              "orientation": "horizontal"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 85},
+                {"color": "green", "value": 95}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "targets": [
+          {
+            "expr": "robot_fleet_healthy{tenant=\"$tenant\"} / robot_fleet_total{tenant=\"$tenant\"} * 100",
+            "legendFormat": "{{robot_type}} Health",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

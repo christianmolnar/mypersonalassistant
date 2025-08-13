@@ -14,13 +14,13 @@
 
 ## 🎨 Color Heuristics (Percentage-Based)
 
-### **HEALTHY ROBOTS** 🟢
+### **HEALTHY ROBOTS** 
 - **99.9% and above**: Green (both count and % panels)
 - **98.0% to 99.89%**: Yellow (both count and % panels)
 - **95.0% to 97.99%**: Orange (both count and % panels)
 - **Below 95.0%**: Red (both count and % panels)
 
-### **DEGRADED, CRITICAL & DOWN ROBOTS** 🟡🟠🔴
+### **DEGRADED, CRITICAL & DOWN ROBOTS**
 - **0% to 0.333%**: Green (both count and % panels)
 - **0.334% to 1.000%**: Yellow (both count and % panels)
 - **1.001% to 2.000%**: Orange (both count and % panels)
